@@ -173,7 +173,7 @@ FunctionArgument: ast::FunctionArgument
 FunctionEnd: () = { "{" "}", ";" };
 
 Function: ast::Function
-  = <m:Modifiers> <g:FunctionGenerics?> <rt:Type> <i:Ident?> "(" <args:CommaList<FunctionArgument>?> ")" FunctionEnd
+  = <m:Modifiers> <g:FunctionGenerics?> <rt:Type> <i:Ident?> "(" <args:CommaList<FunctionArgument>?> ")" ("throws" CommaList<Type>)? FunctionEnd
   => ast::Function {
     modifiers: m,
     generics: g.unwrap_or(Box::from([])),
