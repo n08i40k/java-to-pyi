@@ -145,38 +145,6 @@ pub struct Class {
     pub classes: Box<[ClassCell]>,
 }
 
-#[allow(clippy::mutable_key_type)]
-#[derive(Debug, Clone)]
-pub struct ClassCell(Rc<RefCell<Class>>);
-
-impl From<Rc<RefCell<Class>>> for ClassCell {
-    fn from(value: Rc<RefCell<Class>>) -> Self {
-        Self(value)
-    }
-}
-
-impl Deref for ClassCell {
-    type Target = RefCell<Class>;
-
-    fn deref(&self) -> &Self::Target {
-        self.0.deref()
-    }
-}
-
-impl std::hash::Hash for ClassCell {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        std::ptr::hash(self.0.deref().as_ptr(), state);
-    }
-}
-
-impl std::cmp::PartialEq for ClassCell {
-    fn eq(&self, other: &Self) -> bool {
-        self.0.as_ptr() == other.0.as_ptr()
-    }
-}
-
-impl std::cmp::Eq for ClassCell {}
-
 // impl std::fmt::Debug for Class {
 //     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 //         f.write_fmt(format_args!("Class@{}", &self.ident))
@@ -229,6 +197,38 @@ impl
         }
     }
 }
+
+#[allow(clippy::mutable_key_type)]
+#[derive(Debug, Clone)]
+pub struct ClassCell(Rc<RefCell<Class>>);
+
+impl From<Rc<RefCell<Class>>> for ClassCell {
+    fn from(value: Rc<RefCell<Class>>) -> Self {
+        Self(value)
+    }
+}
+
+impl Deref for ClassCell {
+    type Target = RefCell<Class>;
+
+    fn deref(&self) -> &Self::Target {
+        self.0.deref()
+    }
+}
+
+impl std::hash::Hash for ClassCell {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        std::ptr::hash(self.0.deref().as_ptr(), state);
+    }
+}
+
+impl std::cmp::PartialEq for ClassCell {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.as_ptr() == other.0.as_ptr()
+    }
+}
+
+impl std::cmp::Eq for ClassCell {}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Root {
