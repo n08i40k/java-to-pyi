@@ -109,6 +109,7 @@ Modifier: ast::Modifiers = {
   "transient" => ast::Modifiers::TRANSIENT,   
   "volatile" => ast::Modifiers::VOLATILE,    
   "strictfp" => ast::Modifiers::STRICTFP,    
+  "default" => ast::Modifiers::DEFAULT,    
 }
 
 Modifiers: ast::Modifiers = <mods:Modifier*> => mods.into_iter().reduce(|a, b| a | b).unwrap_or(ast::Modifiers::empty());

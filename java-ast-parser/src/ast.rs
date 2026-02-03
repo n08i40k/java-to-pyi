@@ -20,6 +20,8 @@ bitflags! {
         const TRANSIENT     = 1 << 8;
         const VOLATILE      = 1 << 9;
         const STRICTFP      = 1 << 10;
+
+        const DEFAULT       = 1 << 11;
     }
 }
 
