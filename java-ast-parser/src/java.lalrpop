@@ -95,7 +95,7 @@ Package: &'input str = "package" <p:Path> ";" => p;
 
 #[inline]
 ImportPath: &'input str = <l:@L> Ident ("." Ident)* ("." "*")? <r:@R> => &input[l..r];
-Import: &'input str = "import" <p:ImportPath> ";" => p;
+Import: &'input str = "import" "static"? <p:ImportPath> ";" => p;
 
 Modifier: ast::Modifiers = {
   "public" => ast::Modifiers::PUBLIC,
