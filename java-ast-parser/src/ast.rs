@@ -113,6 +113,7 @@ pub struct FunctionGeneric {
 pub struct FunctionArgument {
     pub r#type: Type,
     pub ident: String,
+    pub vararg: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]

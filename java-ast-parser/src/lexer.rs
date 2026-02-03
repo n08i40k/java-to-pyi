@@ -133,6 +133,9 @@ pub enum Token<'a> {
     #[token(".")]
     Period,
 
+    #[token("...")]
+    VarArg,
+
     #[token("(")]
     OpenPth,
 

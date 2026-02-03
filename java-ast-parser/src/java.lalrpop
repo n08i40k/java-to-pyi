@@ -14,6 +14,7 @@ extern {
         ";" => lexer::Token::Semicolon,
         "," => lexer::Token::Comma,
         "." => lexer::Token::Period,
+        "..." => lexer::Token::VarArg,
 
         "(" => lexer::Token::OpenPth,
         ")" => lexer::Token::ClosePth,
@@ -159,10 +160,11 @@ FunctionGenerics: Box<[ast::FunctionGeneric]>
   => g;
 
 FunctionArgument: ast::FunctionArgument
-  = <t:Type> <i:Ident>
+  = <t:Type> <v:"..."?> <i:Ident>
   => ast::FunctionArgument {
     r#type: t,
-    ident: i.to_string() 
+    ident: i.to_string(),
+    vararg: v.is_some(),
   };
 
 Function: ast::Function
