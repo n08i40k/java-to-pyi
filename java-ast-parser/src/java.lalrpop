@@ -161,8 +161,9 @@ FunctionGenerics: Box<[ast::FunctionGeneric]>
   => g;
 
 FunctionArgument: ast::FunctionArgument
-  = <t:Type> <v:"..."?> <i:Ident>
+  = <m:Modifiers> <t:Type> <v:"..."?> <i:Ident>
   => ast::FunctionArgument {
+    modifiers: m,
     r#type: t,
     ident: i.to_string(),
     vararg: v.is_some(),
