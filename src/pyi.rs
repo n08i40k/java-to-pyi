@@ -1,7 +1,9 @@
 use std::collections::{BTreeSet, HashMap};
 use std::rc::Rc;
 
-use java_ast_parser::ast::{self, ClassCell, Function, Modifiers, Root, Type, TypeName};
+use java_ast_parser::ast::{
+    self, ClassCell, Function, Modifiers, Root, Type, TypeGeneric, TypeName,
+};
 
 pub fn generate_pyi_by_package(
     roots: &[Rc<Root>],
@@ -80,10 +82,7 @@ impl PyiEmitter {
 
         let mut class_line = format!("class {}{}:", class.ident, bases_suffix);
         if rendered_bases.has_unknown {
-            class_line.push_str(&format!(
-                "  # unknown type used in {}",
-                class_path
-            ));
+            class_line.push_str(&format!("  # unknown type used in {}", class_path));
         }
         self.line(class_line);
         self.indent += 1;
@@ -296,6 +295,16 @@ impl TypeRenderer {
         Self { class_paths }
     }
 
+    fn render_generic(&self, ty_gen: &TypeGeneric) -> RenderedType {
+        match &ty_gen {
+            TypeGeneric::Type(ty) => self.render(ty),
+            TypeGeneric::Wildcard(_) => RenderedType {
+                text: "Any".to_string(),
+                unknown_idents: Vec::new(),
+            },
+        }
+    }
+
     fn render(&self, ty: &Type) -> RenderedType {
         let mut rendered = self.render_non_array(ty);
         if ty.array {
@@ -329,7 +338,7 @@ impl TypeRenderer {
                     .generics
                     .iter()
                     .map(|arg| {
-                        let rendered = self.render(arg);
+                        let rendered = self.render_generic(arg);
                         unknowns.extend(rendered.unknown_idents);
                         rendered.text
                     })
@@ -360,10 +369,14 @@ impl TypeRenderer {
         }
     }
 
-    fn render_collection(&self, collection: CollectionKind, generics: &[Type]) -> RenderedType {
+    fn render_collection(
+        &self,
+        collection: CollectionKind,
+        generics: &[TypeGeneric],
+    ) -> RenderedType {
         let mut unknowns = Vec::new();
         let mut render_arg = |index: usize| -> String {
-            let rendered = generics.get(index).map(|arg| self.render(arg));
+            let rendered = generics.get(index).map(|arg| self.render_generic(arg));
             match rendered {
                 Some(rendered) => {
                     unknowns.extend(rendered.unknown_idents);
@@ -456,11 +469,7 @@ fn collect_class_paths(
         };
 
         for class_cell in &root.classes {
-            walk_class(
-                &mut paths,
-                class_cell,
-                package_prefix.as_deref(),
-            );
+            walk_class(&mut paths, class_cell, package_prefix.as_deref());
         }
     }
 

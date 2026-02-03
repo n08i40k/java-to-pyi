@@ -1,6 +1,7 @@
 use bitflags::bitflags;
 use ownable::traits::IntoOwned;
 use std::cell::RefCell;
+use std::fmt::write;
 use std::ops::Deref;
 use std::rc::Rc;
 
@@ -78,9 +79,22 @@ impl TypeName {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum WildcardBoundary {
+    None,
+    Extends(Type),
+    Super(Type),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum TypeGeneric {
+    Type(Type),
+    Wildcard(WildcardBoundary),
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct Type {
     pub name: TypeName,
-    pub generics: Box<[Type]>,
+    pub generics: Box<[TypeGeneric]>,
     pub array: bool,
 }
 

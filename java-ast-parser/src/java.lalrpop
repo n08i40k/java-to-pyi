@@ -24,6 +24,7 @@ extern {
         "}" => lexer::Token::CloseBrace,
         "<" => lexer::Token::OpenAngle,
         ">" => lexer::Token::CloseAngle,
+        "?" => lexer::Token::QuestionMark,
 
         Boolean => lexer::Token::Boolean(<bool>),
         Integer => lexer::Token::Integer(<i64>),
@@ -129,8 +130,14 @@ TypeName: ast::TypeName = {
   <i:Path> => ast::TypeName::Ident(i.to_string()),
 };
 
-#[inline]
-TypeGenerics: Box<[ast::Type]> = "<" <l:CommaList<Type>?> ">" => l.unwrap_or(Box::from([]));
+TypeGeneric: ast::TypeGeneric = {
+  <t:Type>                => ast::TypeGeneric::Type(t),
+  "?"                     => ast::TypeGeneric::Wildcard(ast::WildcardBoundary::None),
+  "?" "extends" <t:Type>  => ast::TypeGeneric::Wildcard(ast::WildcardBoundary::Extends(t)),
+  "?" "super" <t:Type>    => ast::TypeGeneric::Wildcard(ast::WildcardBoundary::Super(t)),
+};
+
+TypeGenerics: Box<[ast::TypeGeneric]> = "<" <l:CommaList<TypeGeneric>?> ">" => l.unwrap_or(Box::from([]));
 
 ArrayType: ast::Type = <mut t:Type> "[" "]" => { t.array = true; t };
 
