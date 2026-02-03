@@ -134,6 +134,7 @@ pub(super) enum ClassEntry {
     Class(Class),
     Variables(Box<[Variable]>),
     Function(Function),
+    Skip,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -184,6 +185,7 @@ impl
                 ClassEntry::Class(c) => classes.push(c),
                 ClassEntry::Variables(v) => variables.append(&mut v.into_vec()),
                 ClassEntry::Function(f) => functions.push(f),
+                ClassEntry::Skip => {}
             }
         }
 

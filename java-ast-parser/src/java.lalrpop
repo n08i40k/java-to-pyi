@@ -186,6 +186,7 @@ ClassEntry: ast::ClassEntry = {
   <v:Variables> => ast::ClassEntry::Variables(v),
   <f:Function> => ast::ClassEntry::Function(f),
   <c:Class> => ast::ClassEntry::Class(c),
+  "static" "{" "}" => ast::ClassEntry::Skip,
 };
 
 #[inline]
