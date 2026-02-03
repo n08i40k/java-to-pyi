@@ -9,7 +9,9 @@ use std::{
 use java_ast_parser::ast::{self, ClassCell, Modifiers};
 use topo_sort::{SortResults, TopoSort};
 
-use crate::index_table::{GlobalIndexTable, ImportedIndexTable, LocalIndexTable, QualifiedIndexTable};
+use crate::index_table::{
+    GlobalIndexTable, ImportedIndexTable, LocalIndexTable, QualifiedIndexTable,
+};
 
 /// Parse ast and convert it to owned ("disconnect" from string).
 pub fn parse_java_ast<P: AsRef<Path>>(path: P) -> Option<ast::Root> {
@@ -153,6 +155,10 @@ fn resolve_type_names<'a, T: IntoIterator<Item = &'a (ClassCell, &'a LocalIndexT
 
         for function in &mut class.functions {
             resolve_type_name(&mut function.return_type.name, scope, local_index_table);
+
+            for argument in &mut function.arguments {
+                resolve_type_name(&mut argument.r#type.name, scope, local_index_table);
+            }
         }
     }
 
@@ -267,8 +273,7 @@ pub struct Scope {
 impl Scope {
     pub fn from_roots(roots: &[Rc<ast::Root>]) -> Box<[Self]> {
         let qualified_tables_by_root = {
-            let mut tables_by_root: HashMap<*const ast::Root, QualifiedIndexTable> =
-                HashMap::new();
+            let mut tables_by_root: HashMap<*const ast::Root, QualifiedIndexTable> = HashMap::new();
 
             for root in roots.iter() {
                 tables_by_root.insert(
@@ -369,8 +374,8 @@ pub fn preprocess_asts(roots: &[Rc<ast::Root>], inherit_by_merge: bool) -> Resul
     strip_unknown_extends(&classes, &extends_map);
 
     if inherit_by_merge {
-        let sorted_classes = topo_sort_extendables(&classes, classes.len())
-            .ok_or(Error::CircullarDependency)?;
+        let sorted_classes =
+            topo_sort_extendables(&classes, classes.len()).ok_or(Error::CircullarDependency)?;
 
         merge_inherited_members(&sorted_classes, &extends_map);
     }
