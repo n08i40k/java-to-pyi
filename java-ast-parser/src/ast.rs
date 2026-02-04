@@ -192,6 +192,7 @@ pub(super) enum ClassEntry {
     Variables(Box<[Variable]>),
     Function(Function),
     Class(Class),
+    Enum(Enum),
     Interface(Interface),
     Skip,
 }
@@ -209,6 +210,7 @@ pub struct Class {
     pub functions: Box<[Function]>,
 
     pub classes: Box<[ClassCell]>,
+    pub enums: Box<[EnumCell]>,
     pub interfaces: Box<[InterfaceCell]>,
 }
 
@@ -245,6 +247,7 @@ impl
         let mut variables = Vec::new();
         let mut functions = Vec::new();
         let mut classes = Vec::new();
+        let mut enums = Vec::new();
         let mut interfaces = Vec::new();
 
         for entry in entries {
@@ -252,6 +255,7 @@ impl
                 ClassEntry::Variables(v) => variables.append(&mut v.into_vec()),
                 ClassEntry::Function(f) => functions.push(f),
                 ClassEntry::Class(c) => classes.push(c),
+                ClassEntry::Enum(e) => enums.push(e),
                 ClassEntry::Interface(i) => interfaces.push(i),
                 ClassEntry::Skip => {}
             }
@@ -266,7 +270,95 @@ impl
             variables: variables.into_boxed_slice(),
             functions: functions.into_boxed_slice(),
             classes: classes.into_iter().map(ClassCell::from).collect(),
+            enums: enums.into_iter().map(EnumCell::from).collect(),
             interfaces: interfaces.into_iter().map(InterfaceCell::from).collect(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub(super) enum EnumEntry {
+    Variables(Box<[Variable]>),
+    Function(Function),
+    Class(Class),
+    Enum(Enum),
+    Interface(Interface),
+    Skip,
+}
+
+#[derive(Debug, Clone)]
+pub struct Enum {
+    pub modifiers: Modifiers,
+    pub ident: String,
+    pub generics: Box<[GenericDefinition]>,
+
+    pub implements: Box<[QualifiedType]>,
+
+    pub variables: Box<[Variable]>,
+    pub functions: Box<[Function]>,
+
+    pub classes: Box<[ClassCell]>,
+    pub enums: Box<[EnumCell]>,
+    pub interfaces: Box<[InterfaceCell]>,
+}
+
+pub type EnumCell = ObjectCell<Enum>;
+
+// impl std::fmt::Debug for Enum {
+//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//         f.write_fmt(format_args!("Enum@{}", &self.ident))
+//     }
+// }
+
+impl
+    From<(
+        Modifiers,
+        Cow<'_, str>,
+        Option<Box<[GenericDefinition]>>,
+        Option<Box<[QualifiedType]>>,
+        Option<Box<[EnumEntry]>>,
+    )> for Enum
+{
+    fn from(
+        value: (
+            Modifiers,
+            Cow<'_, str>,
+            Option<Box<[GenericDefinition]>>,
+            Option<Box<[QualifiedType]>>,
+            Option<Box<[EnumEntry]>>,
+        ),
+    ) -> Self {
+        let (modifiers, ident, generics, implements, entries) = value;
+
+        let mut variables = Vec::new();
+        let mut functions = Vec::new();
+        let mut classes = Vec::new();
+        let mut enums = Vec::new();
+        let mut interfaces = Vec::new();
+
+        if let Some(entries) = entries {
+            for entry in entries {
+                match entry {
+                    EnumEntry::Variables(v) => variables.append(&mut v.into_vec()),
+                    EnumEntry::Function(f) => functions.push(f),
+                    EnumEntry::Class(c) => classes.push(c),
+                    EnumEntry::Enum(e) => enums.push(e),
+                    EnumEntry::Interface(i) => interfaces.push(i),
+                    EnumEntry::Skip => {}
+                }
+            }
+        }
+
+        Self {
+            modifiers,
+            ident: ident.to_string(),
+            generics: generics.unwrap_or(Box::new([])),
+            implements: implements.unwrap_or(Box::from([])),
+            classes: classes.into_iter().map(ClassCell::from).collect(),
+            enums: enums.into_iter().map(EnumCell::from).collect(),
+            interfaces: interfaces.into_iter().map(InterfaceCell::from).collect(),
+            variables: variables.into_boxed_slice(),
+            functions: functions.into_boxed_slice(),
         }
     }
 }
@@ -276,6 +368,7 @@ pub(super) enum InterfaceEntry {
     Variables(Box<[Variable]>),
     Function(Function),
     Class(Class),
+    Enum(Enum),
     Interface(Interface),
 }
 
@@ -291,6 +384,7 @@ pub struct Interface {
     pub functions: Box<[Function]>,
 
     pub classes: Box<[ClassCell]>,
+    pub enums: Box<[EnumCell]>,
     pub interfaces: Box<[InterfaceCell]>,
 }
 
@@ -319,6 +413,7 @@ impl
         let mut variables = Vec::new();
         let mut functions = Vec::new();
         let mut classes = Vec::new();
+        let mut enums = Vec::new();
         let mut interfaces = Vec::new();
 
         for entry in entries {
@@ -326,6 +421,7 @@ impl
                 InterfaceEntry::Variables(v) => variables.extend_from_slice(&v),
                 InterfaceEntry::Function(f) => functions.push(f),
                 InterfaceEntry::Class(c) => classes.push(c),
+                InterfaceEntry::Enum(e) => enums.push(e),
                 InterfaceEntry::Interface(i) => interfaces.push(i),
             }
         }
@@ -338,6 +434,7 @@ impl
             generics: generics.unwrap_or(Box::new([])),
             functions: functions.into_boxed_slice(),
             classes: classes.into_iter().map(ClassCell::from).collect(),
+            enums: enums.into_iter().map(EnumCell::from).collect(),
             interfaces: interfaces.into_iter().map(InterfaceCell::from).collect(),
         }
     }
@@ -346,6 +443,7 @@ impl
 #[derive(Debug, Clone)]
 pub(super) enum RootEntry {
     Class(Class),
+    Enum(Enum),
     Interface(Interface),
 }
 
@@ -354,6 +452,7 @@ pub struct Root {
     pub package: String,
     pub imports: Box<[String]>,
     pub classes: Box<[ClassCell]>,
+    pub enums: Box<[EnumCell]>,
     pub interfaces: Box<[InterfaceCell]>,
 }
 
@@ -362,11 +461,13 @@ impl From<(Cow<'_, str>, Vec<Cow<'_, str>>, Vec<RootEntry>)> for Root {
         let (package, imports, entries) = value;
 
         let mut classes = Vec::new();
+        let mut enums = Vec::new();
         let mut interfaces = Vec::new();
 
         for entry in entries {
             match entry {
                 RootEntry::Class(c) => classes.push(c),
+                RootEntry::Enum(e) => enums.push(e),
                 RootEntry::Interface(i) => interfaces.push(i),
             }
         }
@@ -375,6 +476,7 @@ impl From<(Cow<'_, str>, Vec<Cow<'_, str>>, Vec<RootEntry>)> for Root {
             package: package.to_string(),
             imports: imports.into_iter().map(String::from).collect(),
             classes: classes.into_iter().map(ClassCell::from).collect(),
+            enums: enums.into_iter().map(EnumCell::from).collect(),
             interfaces: interfaces.into_iter().map(InterfaceCell::from).collect(),
         }
     }

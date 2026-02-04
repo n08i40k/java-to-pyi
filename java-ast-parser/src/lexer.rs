@@ -309,8 +309,9 @@ impl<'a> std::fmt::Display for Token<'a> {
 
 enum Scope {
     Root,
-    Object { in_body: bool },
-    ClassFunction,
+    Object { skip_pths: bool, in_body: bool },
+    Function,
+    EnumVariant,
 }
 
 /// Streaming lexer that yields spanned tokens.
@@ -348,16 +349,33 @@ impl<'input> Iterator for Lexer<'input> {
 
         match current_scope.borrow_mut().deref_mut() {
             Scope::Root => match &tok {
-                Token::KeywordClass | Token::KeywordInterface => {
+                Token::KeywordClass | Token::KeywordInterface | Token::KeywordEnum => {
                     self.scope_stack
-                        .push_back(Rc::from(RefCell::from(Scope::Object { in_body: false })));
+                        .push_back(Rc::from(RefCell::from(Scope::Object {
+                            skip_pths: tok == Token::KeywordEnum,
+                            in_body: false,
+                        })));
                 }
                 _ => {}
             },
-            Scope::Object { in_body } => match &tok {
-                Token::KeywordClass | Token::KeywordInterface => {
+            Scope::Object { skip_pths, in_body } => match &tok {
+                Token::KeywordClass | Token::KeywordInterface | Token::KeywordEnum => {
                     self.scope_stack
-                        .push_back(Rc::from(RefCell::from(Scope::Object { in_body: false })));
+                        .push_back(Rc::from(RefCell::from(Scope::Object {
+                            skip_pths: tok == Token::KeywordEnum,
+                            in_body: false,
+                        })));
+                }
+                Token::OpenPth => {
+                    if *skip_pths {
+                        self.scope_stack
+                            .push_back(Rc::from(RefCell::from(Scope::EnumVariant)));
+                    }
+                }
+                Token::Semicolon => {
+                    if *skip_pths {
+                        *skip_pths = false;
+                    }
                 }
                 Token::OpenBrace => {
                     if !*in_body {
@@ -366,7 +384,7 @@ impl<'input> Iterator for Lexer<'input> {
                     }
 
                     self.scope_stack
-                        .push_back(Rc::from(RefCell::from(Scope::ClassFunction)));
+                        .push_back(Rc::from(RefCell::from(Scope::Function)));
                 }
                 Token::CloseBrace => {
                     if *in_body {
@@ -411,7 +429,7 @@ impl<'input> Iterator for Lexer<'input> {
                 }
                 _ => {}
             },
-            Scope::ClassFunction => {
+            Scope::Function => {
                 let mut expr_level = 1;
 
                 let mut _current_spanned_tok = Some((Ok(tok), span));
@@ -431,6 +449,37 @@ impl<'input> Iterator for Lexer<'input> {
                             expr_level += 1;
                         }
                         Token::CloseBrace => {
+                            expr_level -= 1;
+
+                            if expr_level == 0 {
+                                self.scope_stack.pop_back();
+                                return Some(Ok((span.start, tok, span.end)));
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            Scope::EnumVariant => {
+                let mut expr_level = 1;
+
+                let mut _current_spanned_tok = Some((Ok(tok), span));
+
+                loop {
+                    let (tok, span) = _current_spanned_tok.take().or_else(|| self.inner.next())?;
+
+                    let tok = match tok {
+                        Ok(tok) => tok,
+                        Err(kind) => {
+                            return Some(Err(LexicalError { kind, span }));
+                        }
+                    };
+
+                    match &tok {
+                        Token::OpenPth => {
+                            expr_level += 1;
+                        }
+                        Token::ClosePth => {
                             expr_level -= 1;
 
                             if expr_level == 0 {

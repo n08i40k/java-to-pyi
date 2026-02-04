@@ -94,6 +94,14 @@ extern {
 Path: Cow<'input, str> = <l:@L> Ident ("." Ident)* <r:@R> => Cow::from(&input[l..r]);
 
 CommaList<T>: Box<[T]> = <first:T> <mut rest:("," <T>)*> => { rest.insert(0, first); rest.into_boxed_slice() };
+TrailingCommaList<T>: Box<[T]> = <first:T> <mut rest:("," <T>)*> "," => { rest.insert(0, first); rest.into_boxed_slice() };
+
+#[inline]
+MayBeTrailingCommaList<T>: Box<[T]> = {
+  <CommaList<T>> => <>,
+  <TrailingCommaList<T>> => <>,
+};
+
 AmpersandList<T>: Box<[T]> = <first:T> <mut rest:("&" <T>)*> => { rest.insert(0, first); rest.into_boxed_slice() };
 PeriodList<T>: Box<[T]> = <first:T> <mut rest:("." <T>)*> => { rest.insert(0, first); rest.into_boxed_slice() };
 
@@ -201,6 +209,7 @@ InterfaceEntry: ast::InterfaceEntry = {
   <v:Variables> => ast::InterfaceEntry::Variables(v),
   <f:Function> => ast::InterfaceEntry::Function(f),
   <c:Class> => ast::InterfaceEntry::Class(c),
+  <e:Enum> => ast::InterfaceEntry::Enum(e),
   <i:Interface> => ast::InterfaceEntry::Interface(i),
 };
 
@@ -211,26 +220,51 @@ Interface: ast::Interface
   = <m:Modifiers> "interface" <i:Ident> <g:GenericDefinitions?> <ex:InterfaceExtends?> "{" <e:InterfaceEntry*> "}"
   => ast::Interface::from((m, i, g, ex, e));
 
+#[inline]
+ObjectImplements: Box<[ast::QualifiedType]> = "implements" <l:CommaList<QualifiedType>> => l;
+
 ClassEntry: ast::ClassEntry = {
   <v:Variables> => ast::ClassEntry::Variables(v),
   <f:Function> => ast::ClassEntry::Function(f),
   <c:Class> => ast::ClassEntry::Class(c),
+  <e:Enum> => ast::ClassEntry::Enum(e),
   <i:Interface> => ast::ClassEntry::Interface(i),
   "static" "{" "}" => ast::ClassEntry::Skip,
 };
-
-ClassImplements: Box<[ast::QualifiedType]> = "implements" <l:CommaList<QualifiedType>> => l;
 
 #[inline]
 ClassExtends: ast::QualifiedType = "extends" <t:QualifiedType> => t;
 
 Class: ast::Class
-  = <m:Modifiers> "class" <i:Ident> <g:GenericDefinitions?> <ex:ClassExtends?> <im:ClassImplements?> "{" <en:ClassEntry*> "}" ";"?
+  = <m:Modifiers> "class" <i:Ident> <g:GenericDefinitions?> <ex:ClassExtends?> <im:ObjectImplements?> "{" <en:ClassEntry*> "}" ";"?
   => ast::Class::from((m, i, g, ex, im, en));
 
+#[inline]
+EnumVariant: () = Ident ("(" ")")? ("{" "}")?;
+
+#[inline]
+EnumEntry: ast::EnumEntry = {
+  <v:Variables> => ast::EnumEntry::Variables(v),
+  <f:Function> => ast::EnumEntry::Function(f),
+  <c:Class> => ast::EnumEntry::Class(c),
+  <e:Enum> => ast::EnumEntry::Enum(e),
+  <i:Interface> => ast::EnumEntry::Interface(i),
+  "static" "{" "}" => ast::EnumEntry::Skip,
+};
+
+#[inline]
+EnumBody: Box<[ast::EnumEntry]> = {
+  MayBeTrailingCommaList<EnumVariant> ";"?             => Box::from([]),
+  MayBeTrailingCommaList<EnumVariant> ";" <EnumEntry+> => <>.into_boxed_slice(),
+};
+
+Enum: ast::Enum
+  = <m:Modifiers> "enum" <i:Ident> <g:GenericDefinitions?> <im:ObjectImplements?> "{" <b:EnumBody?> "}" ";"?
+  => ast::Enum::from((m, i, g, im, b));
 
 RootEntry: ast::RootEntry = {
   <c:Class> => ast::RootEntry::Class(c),
+  <e:Enum> => ast::RootEntry::Enum(e),
   <i:Interface> => ast::RootEntry::Interface(i),
 };
 
