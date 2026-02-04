@@ -12,7 +12,8 @@
 use logos::{Logos, Span};
 use ownable::IntoOwned;
 use std::{
-    borrow::Cow, cell::RefCell, collections::VecDeque, num::ParseIntError, ops::DerefMut, rc::Rc,
+    borrow::Cow, cell::RefCell, collections::VecDeque, iter::Peekable, num::ParseIntError,
+    ops::DerefMut, rc::Rc,
 };
 
 /// Categories of lexical errors produced by [`Lexer`].
@@ -321,14 +322,14 @@ enum Scope {
 
 /// Streaming lexer that yields spanned tokens.
 pub struct Lexer<'input> {
-    inner: logos::SpannedIter<'input, Token<'input>>,
+    inner: Peekable<logos::SpannedIter<'input, Token<'input>>>,
     scope_stack: VecDeque<Rc<RefCell<Scope>>>,
 }
 
 impl<'input> Lexer<'input> {
     pub fn new(src: &'input str) -> Self {
         Self {
-            inner: Token::lexer(src).spanned(),
+            inner: Token::lexer(src).spanned().peekable(),
             scope_stack: VecDeque::from([Rc::from(RefCell::from(Scope::Root))]),
         }
     }
@@ -394,6 +395,50 @@ impl<'input> Iterator for Lexer<'input> {
                 Token::CloseBrace => {
                     if *in_body {
                         self.scope_stack.pop_back();
+                    }
+                }
+                Token::ClosePth => {
+                    let Some((Ok(Token::KeywordDefault), _)) = self.inner.peek() else {
+                        return Some(Ok((span.start, tok, span.end)));
+                    };
+
+                    let mut expr_level = 0;
+
+                    loop {
+                        if let Some((Ok(Token::Semicolon), _)) = self.inner.peek() {
+                            return Some(Ok((span.start, tok, span.end)));
+                        }
+
+                        let (tok, span) = self.inner.next()?;
+
+                        let tok = match tok {
+                            Ok(tok) => tok,
+                            Err(kind) => {
+                                return Some(Err(LexicalError { kind, span }));
+                            }
+                        };
+
+                        match &tok {
+                            Token::OpenBrace => {
+                                expr_level += 1;
+                            }
+                            Token::CloseBrace => {
+                                if expr_level == 0 {
+                                    return Some(Err(LexicalError {
+                                        kind: LexicalErrorKind::InvalidToken,
+                                        span,
+                                    }));
+                                }
+
+                                expr_level -= 1;
+                            }
+                            Token::Semicolon => {
+                                if expr_level == 0 {
+                                    return Some(Ok((span.start, tok, span.end)));
+                                }
+                            }
+                            _ => {}
+                        }
                     }
                 }
                 Token::Eq => {
