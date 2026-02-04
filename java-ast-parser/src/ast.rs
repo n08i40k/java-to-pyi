@@ -133,7 +133,7 @@ pub enum TypeGeneric {
 pub struct Type {
     pub name: TypeName,
     pub generics: Box<[TypeGeneric]>,
-    pub array: bool,
+    pub array_depth: usize,
 }
 
 pub type QualifiedType = Box<[Type]>;
@@ -150,13 +150,17 @@ impl Variable {
     pub fn new_array(
         modifiers: Modifiers,
         r#type: QualifiedType,
-        idents: Box<[Cow<'_, str>]>,
+        idents: Box<[(Cow<'_, str>, usize)]>,
     ) -> Box<[Self]> {
         idents
             .into_iter()
-            .map(|ident| Self {
+            .map(|(ident, array_depth)| Self {
                 modifiers: modifiers.clone(),
-                r#type: r#type.clone(),
+                r#type: {
+                    let mut clone = r#type.clone();
+                    clone.last_mut().unwrap().array_depth += array_depth;
+                    clone
+                },
                 ident: ident.to_string(),
             })
             .collect()

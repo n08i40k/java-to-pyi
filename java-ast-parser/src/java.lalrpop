@@ -149,22 +149,23 @@ TypeGeneric: ast::TypeGeneric = {
 
 TypeGenerics: Box<[ast::TypeGeneric]> = "<" <l:CommaList<TypeGeneric>?> ">" => l.unwrap_or(Box::from([]));
 
-ArrayType: ast::Type = <mut t:Type> "[" "]" => { t.array = true; t };
-
-Type: ast::Type = {
-  <n:TypeName> <g:TypeGenerics?> => ast::Type {
+Type: ast::Type 
+  = <n:TypeName> <g:TypeGenerics?> <a:("[" "]")*>
+  => ast::Type {
     name: n,
     generics: g.unwrap_or(Box::from([])),
-    array: false,
-  },
-  
-  <t:ArrayType> => t,
-};
+    array_depth: a.len(),
+  };
 
 QualifiedType: ast::QualifiedType = PeriodList<Type> => <>;
 
+#[inline]
+IdentWithArray: (Cow<'input, str>, usize) 
+  = <i:Ident> <a:("[" "]")*>
+  => (i, a.len());
+
 Variables: Box<[ast::Variable]> 
-  = <m:Modifiers> <t:QualifiedType> <i:CommaList<Ident>> ";" 
+  = <m:Modifiers> <t:QualifiedType> <i:CommaList<IdentWithArray>> ";" 
   => ast::Variable::new_array(m, t, i);
 
 GenericDefinitionsExtends: Box<[ast::QualifiedType]> = "extends" <e:AmpersandList<QualifiedType>> => e;
@@ -184,10 +185,10 @@ FunctionArgumentIdent: Cow<'input, str> = {
 };
 
 FunctionArgument: ast::FunctionArgument
-  = <m:Modifiers> <t:QualifiedType> <v:"..."?> <i:FunctionArgumentIdent>
+  = <m:Modifiers> <mut t:QualifiedType> <v:"..."?> <i:FunctionArgumentIdent> <a:("[" "]")*> 
   => ast::FunctionArgument {
     modifiers: m,
-    r#type: t,
+    r#type: { t.last_mut().unwrap().array_depth += a.len(); t },
     ident: i.to_string(),
     vararg: v.is_some(),
   };
