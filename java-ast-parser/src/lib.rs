@@ -160,7 +160,7 @@ impl<'a> std::fmt::Display for ErrorCell<'a> {
             )?,
             Error::User { error } => {
                 let start = ErrorLocation::new(self.owner.as_ref(), error.span.start);
-                let end = ErrorLocation::new(self.owner.as_ref(), error.span.start);
+                let end = ErrorLocation::new(self.owner.as_ref(), error.span.end);
 
                 match &error.kind {
                     lexer::LexicalErrorKind::InvalidToken => write!(
