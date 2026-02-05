@@ -135,52 +135,46 @@ impl PackageIndexTree {
         fn walk_interface(
             tree: &mut DynTree<TreeNode>,
             parent_idx: NodeIdx<Dyn<TreeNode>>,
-            interface_cell: &InterfaceCell,
+            self_cell: &InterfaceCell,
         ) {
-            let interface = interface_cell.borrow();
+            let self_idx = {
+                let mut parent_mut = tree.node_mut(parent_idx);
+                parent_mut.push_child(TreeNode::from(self_cell))
+            };
 
-            for class_cell in &interface.classes {
-                let child_idx = {
-                    let mut parent_mut = tree.node_mut(parent_idx);
-                    parent_mut.push_child(TreeNode::from(class_cell))
-                };
+            let self_ref = self_cell.borrow();
 
-                walk_class(tree, child_idx, class_cell);
+            for class_cell in &self_ref.classes {
+                walk_class(tree, self_idx, class_cell);
             }
 
-            for interface_cell in &interface.interfaces {
-                let child_idx = {
-                    let mut parent_mut = tree.node_mut(parent_idx);
-                    parent_mut.push_child(TreeNode::from(interface_cell))
-                };
+            for interface_cell in &self_ref.interfaces {
+                walk_interface(tree, self_idx, interface_cell);
+            }
 
-                walk_interface(tree, child_idx, interface_cell);
             }
         }
 
         fn walk_class(
             tree: &mut DynTree<TreeNode>,
             parent_idx: NodeIdx<Dyn<TreeNode>>,
-            class_cell: &ClassCell,
+            self_cell: &ClassCell,
         ) {
-            let class = class_cell.borrow();
+            let self_idx = {
+                let mut parent_mut = tree.node_mut(parent_idx);
+                parent_mut.push_child(TreeNode::from(self_cell))
+            };
 
-            for class_cell in &class.classes {
-                let child_idx = {
-                    let mut parent_mut = tree.node_mut(parent_idx);
-                    parent_mut.push_child(TreeNode::from(class_cell))
-                };
+            let self_ref = self_cell.borrow();
 
-                walk_class(tree, child_idx, class_cell);
+            for class_cell in &self_ref.classes {
+                walk_class(tree, self_idx, class_cell);
             }
 
-            for interface_cell in &class.interfaces {
-                let child_idx = {
-                    let mut parent_mut = tree.node_mut(parent_idx);
-                    parent_mut.push_child(TreeNode::from(interface_cell))
-                };
+            for interface_cell in &self_ref.interfaces {
+                walk_interface(tree, self_idx, interface_cell);
+            }
 
-                walk_interface(tree, child_idx, interface_cell);
             }
         }
 
