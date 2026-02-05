@@ -19,9 +19,18 @@ impl TreeNode {
     pub fn ident(&self) -> Option<Ref<'_, str>> {
         match self {
             TreeNode::Root => None,
-            TreeNode::Package(cell) => Some(Ref::map(cell.borrow(), |x| x.as_str())),
-            TreeNode::Class(cell) => Some(Ref::map(cell.borrow(), |x| x.ident.as_ref())),
-            TreeNode::Interface(cell) => Some(Ref::map(cell.borrow(), |x| x.ident.as_ref())),
+            TreeNode::Package(cell) => cell
+                .try_borrow()
+                .map(|cell_ref| Ref::map(cell_ref, |x| x.as_str()))
+                .ok(),
+            TreeNode::Class(cell) => cell
+                .try_borrow()
+                .map(|cell_ref| Ref::map(cell_ref, |x| x.ident.as_str()))
+                .ok(),
+            TreeNode::Interface(cell) => cell
+                .try_borrow()
+                .map(|cell_ref| Ref::map(cell_ref, |x| x.ident.as_str()))
+                .ok(),
         }
     }
 }
