@@ -45,7 +45,9 @@ fn resolve_qualified_type(
     }) = r#type.last()
     {
         match ident.as_str() {
-            "String" | "Integer" | "ByteBuffer" | "Object" | "Map" | "Runnable" => return,
+            "String" | "Boolean" | "Integer" | "Long" | "Map" | "List" | "Set" | "HashMap"
+            | "ArrayList" | "HashSet" | "ImmutableMap" | "ImmutableList" | "ImmutableSet"
+            | "IdentityHashMap" | "CharSequence" | "ByteBuffer" | "Object" | "Runnable" => return,
             _ => {}
         }
     }
