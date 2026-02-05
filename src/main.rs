@@ -64,7 +64,7 @@ fn main() {
         return;
     }
 
-    preprocess_asts(&asts, true).unwrap();
+    preprocess_asts(&asts, options.inherit_by_merge).unwrap();
 
     let outputs = generate_pyi_by_package(&asts, options.namespace_prefix.as_deref());
 
@@ -110,12 +110,14 @@ struct CliOptions {
     inputs: Vec<PathBuf>,
     out_dir: PathBuf,
     namespace_prefix: Option<String>,
+    inherit_by_merge: bool,
 }
 
 fn parse_args(args: Vec<String>) -> Result<CliOptions, String> {
     let mut inputs = Vec::new();
     let mut out_dir = PathBuf::from("out");
     let mut namespace_prefix = None;
+    let mut inherit_by_merge = false;
 
     let mut iter = args.into_iter();
     let _program = iter.next();
@@ -146,6 +148,9 @@ fn parse_args(args: Vec<String>) -> Result<CliOptions, String> {
             "-h" | "--help" => {
                 return Err(String::from("help requested"));
             }
+            "--inherit-by-merge" | "--merge-inherit" => {
+                inherit_by_merge = true;
+            }
             _ => {
                 if arg.starts_with('-') {
                     return Err(format!("unknown option: {}", arg));
@@ -163,6 +168,7 @@ fn parse_args(args: Vec<String>) -> Result<CliOptions, String> {
         inputs,
         out_dir,
         namespace_prefix,
+        inherit_by_merge,
     })
 }
 
@@ -175,6 +181,7 @@ fn usage() -> String {
         "  -i, --input <path>      Input file or directory (recurses for .java)",
         "  -p, --prefix <pkg>      Namespace prefix (e.g. java_interop)",
         "  -o, --out <dir>         Output directory (default: out)",
+        "      --inherit-by-merge  Merge inherited members into child classes",
         "  -h, --help              Show this help",
     ]
     .join("\n")
