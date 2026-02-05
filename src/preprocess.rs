@@ -1,6 +1,6 @@
 use std::{collections::HashMap, fs, ops::Deref, path::Path, rc::Rc};
 
-use java_ast_parser::ast::{self, ClassCell, InterfaceCell, TypeName};
+use java_ast_parser::ast::{self, ClassCell, InterfaceCell, Type, TypeGeneric, TypeName};
 use log::warn;
 use topo_sort::{SortResults, TopoSort};
 
@@ -16,10 +16,40 @@ pub fn parse_java_ast<P: AsRef<Path>>(
 }
 
 fn resolve_qualified_type(
+    generic_names: &[String],
     r#type: &mut ast::QualifiedType,
     scope: &ClassCell,
     local_index_tree: &LocalIndexTree,
 ) {
+    if r#type.len() == 1
+        && let TypeName::Ident(ident) = &r#type[0].name
+        && generic_names.contains(ident)
+    {
+        r#type.last_mut().unwrap().name = ast::TypeName::ResolvedGeneric(ident.clone());
+        return;
+    }
+
+    if let Some(last) = r#type.last_mut()
+        && !last.generics.is_empty()
+    {
+        for inner in &mut last.generics {
+            if let TypeGeneric::Type(inner) = inner {
+                resolve_qualified_type(generic_names, inner, scope, local_index_tree);
+            }
+        }
+    }
+
+    if let Some(Type {
+        name: TypeName::Ident(ident),
+        ..
+    }) = r#type.last()
+    {
+        match ident.as_str() {
+            "String" | "Integer" | "ByteBuffer" | "Object" | "Map" | "Runnable" => return,
+            _ => {}
+        }
+    }
+
     let Some(type_cell) = local_index_tree.search(Some(scope), r#type) else {
         if let TypeName::Ident(_) = r#type.last().unwrap().name {
             warn!(
@@ -47,19 +77,40 @@ fn resolve_type_names<'a, T: IntoIterator<Item = &'a (ClassCell, &'a LocalIndexT
     for (class_cell, local_index_tree) in iter {
         let mut class = class_cell.borrow_mut();
 
+        let generics = class
+            .generics
+            .iter()
+            .map(|g| g.ident.clone())
+            .collect::<Box<[_]>>();
+
         if let Some(extends) = &mut class.extends {
-            resolve_qualified_type(extends, class_cell, local_index_tree);
+            resolve_qualified_type(&generics, extends, class_cell, local_index_tree);
         }
 
         for variable in &mut class.variables {
-            resolve_qualified_type(&mut variable.r#type, class_cell, local_index_tree);
+            resolve_qualified_type(
+                &generics,
+                &mut variable.r#type,
+                class_cell,
+                local_index_tree,
+            );
         }
 
         for function in &mut class.functions {
-            resolve_qualified_type(&mut function.return_type, class_cell, local_index_tree);
+            resolve_qualified_type(
+                &generics,
+                &mut function.return_type,
+                class_cell,
+                local_index_tree,
+            );
 
             for argument in &mut function.arguments {
-                resolve_qualified_type(&mut argument.r#type, class_cell, local_index_tree);
+                resolve_qualified_type(
+                    &generics,
+                    &mut argument.r#type,
+                    class_cell,
+                    local_index_tree,
+                );
             }
         }
     }

@@ -83,6 +83,7 @@ pub enum TypeName {
     Float,
     Double,
     Ident(String),
+    ResolvedGeneric(String),
     ResolvedClass(ClassCell),
 }
 
@@ -98,6 +99,7 @@ impl std::fmt::Debug for TypeName {
             Self::Float => write!(f, "Float"),
             Self::Double => write!(f, "Double"),
             Self::Ident(arg0) => f.debug_tuple("Ident").field(arg0).finish(),
+            Self::ResolvedGeneric(arg0) => f.debug_tuple("ResolvedGeneric").field(arg0).finish(),
             Self::ResolvedClass(arg0) => f
                 .debug_tuple("ResolvedIdent")
                 .field(&arg0.borrow().ident)
@@ -118,6 +120,7 @@ impl std::fmt::Display for TypeName {
             TypeName::Float => write!(f, "float"),
             TypeName::Double => write!(f, "double"),
             TypeName::Ident(ident) => write!(f, "{}", ident),
+            TypeName::ResolvedGeneric(ident) => write!(f, "{}", ident),
             TypeName::ResolvedClass(class_cell) => {
                 let class = class_cell.borrow();
 
