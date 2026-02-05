@@ -5,11 +5,11 @@ use std::{
 };
 
 use crate::preprocess::{parse_java_ast, preprocess_asts};
-//use crate::pyi::generate_pyi_by_package;
+use crate::pyi::generate_pyi_by_package;
 
 mod index_tree;
 mod preprocess;
-//mod pyi;
+mod pyi;
 
 fn main() {
     if std::env::var("RUST_LOG").is_err() {
@@ -66,20 +66,20 @@ fn main() {
 
     preprocess_asts(&asts, true).unwrap();
 
-    // let outputs = generate_pyi_by_package(&asts, options.namespace_prefix.as_deref());
-    //
-    // for (package, contents) in outputs {
-    //     let file_path = package_to_path(
-    //         &options.out_dir,
-    //         &package,
-    //         options.namespace_prefix.as_deref(),
-    //     );
-    //     if let Some(parent) = file_path.parent() {
-    //         fs::create_dir_all(parent).unwrap();
-    //     }
-    //     fs::write(&file_path, contents).unwrap();
-    //     println!("wrote {}", file_path.display());
-    // }
+    let outputs = generate_pyi_by_package(&asts, options.namespace_prefix.as_deref());
+
+    for (package, contents) in outputs {
+        let file_path = package_to_path(
+            &options.out_dir,
+            &package,
+            options.namespace_prefix.as_deref(),
+        );
+        if let Some(parent) = file_path.parent() {
+            fs::create_dir_all(parent).unwrap();
+        }
+        fs::write(&file_path, contents).unwrap();
+        println!("wrote {}", file_path.display());
+    }
 }
 
 fn package_to_path(out_dir: &Path, package: &str, namespace_prefix: Option<&str>) -> PathBuf {
