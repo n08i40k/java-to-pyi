@@ -102,12 +102,17 @@ fn resolve_type_names<'a, T: IntoIterator<Item = &'a (ClassCell, &'a LocalIndexT
             let mut function_generics = generics.clone();
             function_generics.extend(collect_generic_names(&function.generics));
 
-            resolve_qualified_type(
-                &function_generics,
-                &mut function.return_type,
-                Some(class_cell),
-                local_index_tree,
-            );
+            if function.ident == "__ctor" && function.return_type.len() == 1 {
+                function.return_type.last_mut().unwrap().name =
+                    TypeName::ResolvedClass(class_cell.clone());
+            } else {
+                resolve_qualified_type(
+                    &function_generics,
+                    &mut function.return_type,
+                    Some(class_cell),
+                    local_index_tree,
+                );
+            }
 
             for argument in &mut function.arguments {
                 resolve_qualified_type(

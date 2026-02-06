@@ -205,7 +205,7 @@ Function: ast::Function
     modifiers: m,
     generics: g.unwrap_or(Box::from([])),
     return_type: rt,
-    ident: i.unwrap_or_else(|| Cow::from("constructor")).to_string(),
+    ident: i.unwrap_or_else(|| Cow::from("__ctor")).to_string(),
     arguments: args.unwrap_or(Box::from([]))
   };
 
