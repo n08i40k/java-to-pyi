@@ -8,11 +8,11 @@ use java_ast_parser::ast::{
 
 pub fn generate_pyi_by_package(
     roots: &[Rc<Root>],
-    namespace_prefix: Option<&str>,
+    namespace_prefix: &str,
 ) -> HashMap<String, String> {
     let normalized_prefix = normalize_namespace_prefix(namespace_prefix);
     let definition_paths =
-        Rc::new(collect_definition_paths(roots, normalized_prefix.as_deref()));
+        Rc::new(collect_definition_paths(roots, &normalized_prefix));
     let class_paths = Rc::new(definition_paths.class_paths.clone());
 
     let mut roots_by_package: HashMap<String, Vec<Rc<Root>>> = HashMap::new();
@@ -61,7 +61,7 @@ struct PyiEmitter {
     type_params: BTreeSet<String>,
     type_renderer: TypeRenderer,
     definition_paths: Rc<DefinitionPaths>,
-    namespace_import: Option<String>,
+    namespace_import: String,
     module_imports: BTreeSet<String>,
 }
 
@@ -70,7 +70,7 @@ impl PyiEmitter {
         type_params: BTreeSet<String>,
         class_paths: Rc<HashMap<ClassCell, String>>,
         definition_paths: Rc<DefinitionPaths>,
-        namespace_import: Option<String>,
+        namespace_import: String,
         module_imports: BTreeSet<String>,
     ) -> Self {
         Self {
@@ -86,12 +86,9 @@ impl PyiEmitter {
 
     fn emit_header(&mut self) {
         self.line("from __future__ import annotations".to_string());
-        if let Some(namespace_import) = &self.namespace_import {
-            self.line(format!("import {}", namespace_import));
-        }
         let module_imports = self.module_imports.iter().cloned().collect::<Vec<_>>();
         for module_import in module_imports {
-            if self.namespace_import.as_ref() == Some(&module_import) {
+            if module_import == self.namespace_import {
                 continue;
             }
             self.line(format!("import {}", module_import));
@@ -952,7 +949,7 @@ fn type_name_key(name: &str) -> Option<String> {
     name.rsplit('.').next().map(|v| v.to_string())
 }
 
-fn collect_definition_paths(roots: &[Rc<Root>], namespace_prefix: Option<&str>) -> DefinitionPaths {
+fn collect_definition_paths(roots: &[Rc<Root>], namespace_prefix: &str) -> DefinitionPaths {
     let mut paths = DefinitionPaths {
         class_paths: HashMap::new(),
         class_modules: HashMap::new(),
@@ -1054,35 +1051,34 @@ fn collect_definition_paths(roots: &[Rc<Root>], namespace_prefix: Option<&str>) 
     }
 
     for root in roots {
-        let package_prefix = match (prefix.as_deref(), root.package.is_empty()) {
-            (Some(prefix), false) => Some(format!("{}.{}", prefix, root.package)),
-            (Some(prefix), true) => Some(prefix.to_string()),
-            (None, false) => Some(root.package.clone()),
-            (None, true) => None,
+        let package_prefix = if root.package.is_empty() {
+            prefix.clone()
+        } else {
+            format!("{}.{}", prefix, root.package)
         };
 
         for class_cell in &root.classes {
             walk_class(
                 &mut paths,
                 class_cell,
-                package_prefix.as_deref(),
-                package_prefix.as_deref(),
+                Some(&package_prefix),
+                Some(&package_prefix),
             );
         }
         for interface_cell in &root.interfaces {
             walk_interface(
                 &mut paths,
                 interface_cell,
-                package_prefix.as_deref(),
-                package_prefix.as_deref(),
+                Some(&package_prefix),
+                Some(&package_prefix),
             );
         }
         for enum_cell in &root.enums {
             walk_enum(
                 &mut paths,
                 enum_cell,
-                package_prefix.as_deref(),
-                package_prefix.as_deref(),
+                Some(&package_prefix),
+                Some(&package_prefix),
             );
         }
     }
@@ -1090,13 +1086,8 @@ fn collect_definition_paths(roots: &[Rc<Root>], namespace_prefix: Option<&str>) 
     paths
 }
 
-fn normalize_namespace_prefix(namespace_prefix: Option<&str>) -> Option<String> {
-    let prefix = namespace_prefix?.trim().trim_matches('.');
-    if prefix.is_empty() {
-        None
-    } else {
-        Some(prefix.to_string())
-    }
+fn normalize_namespace_prefix(namespace_prefix: &str) -> String {
+    namespace_prefix.trim().trim_matches('.').to_string()
 }
 
 fn map_boxed_type(ident: &str) -> Option<String> {

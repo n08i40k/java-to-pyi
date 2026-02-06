@@ -66,13 +66,13 @@ fn main() {
 
     preprocess_asts(&asts, options.inherit_by_merge).unwrap();
 
-    let outputs = generate_pyi_by_package(&asts, options.namespace_prefix.as_deref());
+    let outputs = generate_pyi_by_package(&asts, &options.namespace_prefix);
 
     for (package, contents) in outputs {
         let file_path = package_to_path(
             &options.out_dir,
             &package,
-            options.namespace_prefix.as_deref(),
+            &options.namespace_prefix,
         );
         if let Some(parent) = file_path.parent() {
             fs::create_dir_all(parent).unwrap();
@@ -83,14 +83,12 @@ fn main() {
     }
 }
 
-fn package_to_path(out_dir: &Path, package: &str, namespace_prefix: Option<&str>) -> PathBuf {
+fn package_to_path(out_dir: &Path, package: &str, namespace_prefix: &str) -> PathBuf {
     let mut path = PathBuf::from(out_dir);
 
-    if let Some(prefix) = namespace_prefix {
-        for part in prefix.trim_matches('.').split('.') {
-            if !part.is_empty() {
-                path.push(part);
-            }
+    for part in namespace_prefix.trim_matches('.').split('.') {
+        if !part.is_empty() {
+            path.push(part);
         }
     }
 
@@ -128,14 +126,14 @@ fn ensure_parent_inits(file_path: &Path, out_dir: &Path) -> std::io::Result<()> 
 struct CliOptions {
     inputs: Vec<PathBuf>,
     out_dir: PathBuf,
-    namespace_prefix: Option<String>,
+    namespace_prefix: String,
     inherit_by_merge: bool,
 }
 
 fn parse_args(args: Vec<String>) -> Result<CliOptions, String> {
     let mut inputs = Vec::new();
     let mut out_dir = PathBuf::from("out");
-    let mut namespace_prefix = None;
+    let mut namespace_prefix: Option<String> = None;
     let mut inherit_by_merge = false;
 
     let mut iter = args.into_iter();
@@ -160,9 +158,10 @@ fn parse_args(args: Vec<String>) -> Result<CliOptions, String> {
                     .next()
                     .ok_or_else(|| "missing value for --prefix".to_string())?;
                 let trimmed = value.trim().trim_matches('.').to_string();
-                if !trimmed.is_empty() {
-                    namespace_prefix = Some(trimmed);
+                if trimmed.is_empty() {
+                    return Err(String::from("prefix cannot be empty"));
                 }
+                namespace_prefix = Some(trimmed);
             }
             "-h" | "--help" => {
                 return Err(String::from("help requested"));
@@ -182,11 +181,14 @@ fn parse_args(args: Vec<String>) -> Result<CliOptions, String> {
     if inputs.is_empty() {
         return Err(String::from("no inputs provided"));
     }
+    if namespace_prefix.is_none() {
+        return Err(String::from("missing required --prefix"));
+    }
 
     Ok(CliOptions {
         inputs,
         out_dir,
-        namespace_prefix,
+        namespace_prefix: namespace_prefix.unwrap(),
         inherit_by_merge,
     })
 }
@@ -194,11 +196,11 @@ fn parse_args(args: Vec<String>) -> Result<CliOptions, String> {
 fn usage() -> String {
     [
         "Usage:",
-        "  java-to-pyi -i <path> [-i <path> ...] [--prefix <pkg>] [--out <dir>]",
+        "  java-to-pyi -i <path> [-i <path> ...] --prefix <pkg> [--out <dir>]",
         "",
         "Options:",
         "  -i, --input <path>      Input file or directory (recurses for .java)",
-        "  -p, --prefix <pkg>      Namespace prefix (e.g. java_interop)",
+        "  -p, --prefix <pkg>      Namespace prefix (e.g. java_interop) (required)",
         "  -o, --out <dir>         Output directory (default: out)",
         "      --inherit-by-merge  Merge inherited members into child classes",
         "  -h, --help              Show this help",
