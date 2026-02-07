@@ -328,6 +328,8 @@ pub enum Token<'a> {
     #[token("double")]
     TypeDouble,
 
+    RecordCtor,
+
     #[regex(
         r#"'(?:\\u[0-9a-fA-F]{4}|\\[0-7]{1,3}|\\[btnfr"'\\]|[^'\\\r\n])'"#,
         string_from_lexer
@@ -349,7 +351,12 @@ impl<'a> std::fmt::Display for Token<'a> {
 
 enum Scope {
     Root,
-    Object { skip_pths: bool, in_body: bool },
+    Object {
+        skip_pths: bool,
+        in_body: bool,
+        is_record: bool,
+        record_name: Option<String>,
+    },
     Function,
     EnumVariant,
 }
@@ -404,11 +411,18 @@ impl<'input> Iterator for Lexer<'input> {
                         .push_back(Rc::from(RefCell::from(Scope::Object {
                             skip_pths: tok == Token::KeywordEnum,
                             in_body: false,
+                            is_record: matches!(tok, Token::KeywordRecord),
+                            record_name: None,
                         })));
                 }
                 _ => {}
             },
-            Scope::Object { skip_pths, in_body } => match &tok {
+            Scope::Object {
+                skip_pths,
+                in_body,
+                is_record,
+                record_name,
+            } => match &tok {
                 Token::KeywordClass
                 | Token::KeywordInterface
                 | Token::KeywordEnum
@@ -424,7 +438,20 @@ impl<'input> Iterator for Lexer<'input> {
                         .push_back(Rc::from(RefCell::from(Scope::Object {
                             skip_pths: tok == Token::KeywordEnum,
                             in_body: false,
+                            is_record: matches!(tok, Token::KeywordRecord),
+                            record_name: None,
                         })));
+                }
+                Token::Ident(ident) => {
+                    if *is_record {
+                        if record_name.is_none() {
+                            *record_name = Some(ident.to_string());
+                        } else if record_name.as_ref().unwrap().as_str() == ident
+                            && matches!(self.inner.peek(), Some((Ok(Token::OpenBrace), _)))
+                        {
+                            return Some(Ok((span.start, Token::RecordCtor, span.end)));
+                        }
+                    }
                 }
                 Token::OpenPth => {
                     if *skip_pths {

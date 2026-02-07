@@ -90,6 +90,8 @@ extern {
         "float" => lexer::Token::TypeFloat,
         "double" => lexer::Token::TypeDouble,
 
+        RecordCtor => lexer::Token::RecordCtor,
+
         String => lexer::Token::String(<Cow<'input, str>>),
         Ident => lexer::Token::Ident(<Cow<'input, str>>),
     }
@@ -245,6 +247,7 @@ ClassEntry: ast::ClassEntry = {
   <e:Enum> => ast::ClassEntry::Enum(e),
   <i:Interface> => ast::ClassEntry::Interface(i),
   "static"? "{" "}" => ast::ClassEntry::Skip,
+  Modifiers RecordCtor "{" "}" => ast::ClassEntry::Skip,
 };
 
 #[inline]
