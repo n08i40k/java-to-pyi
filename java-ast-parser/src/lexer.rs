@@ -213,8 +213,14 @@ pub enum Token<'a> {
     #[token("new")]
     KeywordNew,
 
+    #[token("non-sealed")]
+    KeywordNonSealed,
+
     #[token("package")]
     KeywordPackage,
+
+    #[token("permits")]
+    KeywordPermits,
 
     #[token("private")]
     KeywordPrivate,
@@ -230,6 +236,9 @@ pub enum Token<'a> {
 
     #[token("return")]
     KeywordReturn,
+
+    #[token("sealed")]
+    KeywordSealed,
 
     #[token("static")]
     KeywordStatic,

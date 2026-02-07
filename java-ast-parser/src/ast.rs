@@ -66,15 +66,17 @@ bitflags! {
 
         const STATIC        = 1 << 3;
         const FINAL         = 1 << 4;
-        const ABSTRACT      = 1 << 5;
+        const SEALED        = 1 << 5;
+        const NON_SEALED    = 1 << 6;
+        const ABSTRACT      = 1 << 7;
 
-        const NATIVE        = 1 << 6;
-        const SYNCHRONIZED  = 1 << 7;
-        const TRANSIENT     = 1 << 8;
-        const VOLATILE      = 1 << 9;
-        const STRICTFP      = 1 << 10;
+        const NATIVE        = 1 << 8;
+        const SYNCHRONIZED  = 1 << 9;
+        const TRANSIENT     = 1 << 10;
+        const VOLATILE      = 1 << 11;
+        const STRICTFP      = 1 << 12;
 
-        const DEFAULT       = 1 << 11;
+        const DEFAULT       = 1 << 13;
     }
 }
 
@@ -332,6 +334,7 @@ pub struct Class {
 
     pub extends: Option<QualifiedType>,
     pub implements: Box<[QualifiedType]>,
+    pub permits: Box<[QualifiedType]>,
 
     pub variables: Box<[Variable]>,
     pub functions: Box<[Function]>,
@@ -362,6 +365,7 @@ impl
         Option<Box<[GenericDefinition]>>,
         Option<QualifiedType>,
         Option<Box<[QualifiedType]>>,
+        Option<Box<[QualifiedType]>>,
         Option<Box<[ClassEntry]>>,
     )> for Class
 {
@@ -372,10 +376,11 @@ impl
             Option<Box<[GenericDefinition]>>,
             Option<QualifiedType>,
             Option<Box<[QualifiedType]>>,
+            Option<Box<[QualifiedType]>>,
             Option<Box<[ClassEntry]>>,
         ),
     ) -> Self {
-        let (modifiers, ident, generics, extends, implements, entries) = value;
+        let (modifiers, ident, generics, extends, implements, permits, entries) = value;
 
         let mut variables = Vec::new();
         let mut functions = Vec::new();
@@ -402,6 +407,7 @@ impl
             generics: generics.unwrap_or(Box::new([])),
             extends,
             implements: implements.unwrap_or(Box::from([])),
+            permits: permits.unwrap_or(Box::from([])),
             variables: variables.into_boxed_slice(),
             functions: functions.into_boxed_slice(),
             classes: classes.into_iter().map(ClassCell::from).collect(),
@@ -520,6 +526,7 @@ pub struct Interface {
     pub generics: Box<[GenericDefinition]>,
 
     pub extends: Box<[QualifiedType]>,
+    pub permits: Box<[QualifiedType]>,
 
     pub variables: Box<[Variable]>,
     pub functions: Box<[Function]>,
@@ -543,6 +550,7 @@ impl
         Cow<'_, str>,
         Option<Box<[GenericDefinition]>>,
         Option<Box<[QualifiedType]>>,
+        Option<Box<[QualifiedType]>>,
         Option<Box<[InterfaceEntry]>>,
     )> for Interface
 {
@@ -552,10 +560,11 @@ impl
             Cow<'_, str>,
             Option<Box<[GenericDefinition]>>,
             Option<Box<[QualifiedType]>>,
+            Option<Box<[QualifiedType]>>,
             Option<Box<[InterfaceEntry]>>,
         ),
     ) -> Self {
-        let (modifiers, ident, generics, extends, entries) = value;
+        let (modifiers, ident, generics, extends, permits, entries) = value;
 
         let mut variables = Vec::new();
         let mut functions = Vec::new();
@@ -579,6 +588,7 @@ impl
             modifiers,
             ident: ident.to_string(),
             extends: extends.unwrap_or(Box::new([])),
+            permits: permits.unwrap_or(Box::new([])),
             variables: variables.into_boxed_slice(),
             generics: generics.unwrap_or(Box::new([])),
             functions: functions.into_boxed_slice(),

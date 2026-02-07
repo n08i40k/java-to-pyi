@@ -56,12 +56,15 @@ extern {
         "module" => lexer::Token::KeywordModule,
         "native" => lexer::Token::KeywordNative,
         "new" => lexer::Token::KeywordNew,
+        "non-sealed" => lexer::Token::KeywordNonSealed,
         "package" => lexer::Token::KeywordPackage,
+        "permits" => lexer::Token::KeywordPermits,
         "private" => lexer::Token::KeywordPrivate,
         "protected" => lexer::Token::KeywordProtected,
         "public" => lexer::Token::KeywordPublic,
         "requires" => lexer::Token::KeywordRequires,
         "return" => lexer::Token::KeywordReturn,
+        "sealed" => lexer::Token::KeywordSealed,
         "static" => lexer::Token::KeywordStatic,
         "strictfp" => lexer::Token::KeywordStrictfp,
         "super" => lexer::Token::KeywordSuper,
@@ -118,14 +121,16 @@ Modifier: ast::Modifiers = {
   "private" => ast::Modifiers::PRIVATE,
   "protected" => ast::Modifiers::PROTECTED,
   "static" => ast::Modifiers::STATIC,
-  "final" => ast::Modifiers::FINAL,       
-  "abstract" => ast::Modifiers::ABSTRACT,    
-  "native" => ast::Modifiers::NATIVE,      
+  "final" => ast::Modifiers::FINAL,
+  "sealed" => ast::Modifiers::SEALED,
+  "non-sealed" => ast::Modifiers::NON_SEALED,
+  "abstract" => ast::Modifiers::ABSTRACT,
+  "native" => ast::Modifiers::NATIVE,
   "synchronized" => ast::Modifiers::SYNCHRONIZED,
-  "transient" => ast::Modifiers::TRANSIENT,   
-  "volatile" => ast::Modifiers::VOLATILE,    
-  "strictfp" => ast::Modifiers::STRICTFP,    
-  "default" => ast::Modifiers::DEFAULT,    
+  "transient" => ast::Modifiers::TRANSIENT,
+  "volatile" => ast::Modifiers::VOLATILE,
+  "strictfp" => ast::Modifiers::STRICTFP,
+  "default" => ast::Modifiers::DEFAULT,
 }
 
 Modifiers: ast::Modifiers = <mods:Modifier*> => mods.into_iter().reduce(|a, b| a | b).unwrap_or(ast::Modifiers::empty());
@@ -218,11 +223,14 @@ InterfaceEntry: ast::InterfaceEntry = {
 };
 
 #[inline]
+ObjectPermits: Box<[ast::QualifiedType]> = "permits" <l:CommaList<QualifiedType>> => l;
+
+#[inline]
 InterfaceExtends: Box<[ast::QualifiedType]> = "extends" <t:CommaList<QualifiedType>> => t;
 
 Interface: ast::Interface
-  = <m:Modifiers> "interface" <i:Ident> <g:GenericDefinitions?> <ex:InterfaceExtends?> "{" <e:OptionalSemicolonList<InterfaceEntry>?> "}"
-  => ast::Interface::from((m, i, g, ex, e));
+  = <m:Modifiers> "interface" <i:Ident> <g:GenericDefinitions?> <ex:InterfaceExtends?> <p:ObjectPermits?> "{" <e:OptionalSemicolonList<InterfaceEntry>?> "}"
+  => ast::Interface::from((m, i, g, ex, p, e));
 
 #[inline]
 ObjectImplements: Box<[ast::QualifiedType]> = "implements" <l:CommaList<QualifiedType>> => l;
@@ -240,8 +248,8 @@ ClassEntry: ast::ClassEntry = {
 ClassExtends: ast::QualifiedType = "extends" <t:QualifiedType> => t;
 
 Class: ast::Class
-  = <m:Modifiers> "class" <i:Ident> <g:GenericDefinitions?> <ex:ClassExtends?> <im:ObjectImplements?> "{" <en:OptionalSemicolonList<ClassEntry>?> "}"
-  => ast::Class::from((m, i, g, ex, im, en));
+  = <m:Modifiers> "class" <i:Ident> <g:GenericDefinitions?> <ex:ClassExtends?> <im:ObjectImplements?> <p:ObjectPermits?> "{" <en:OptionalSemicolonList<ClassEntry>?> "}"
+  => ast::Class::from((m, i, g, ex, im, p, en));
 
 #[inline]
 EnumVariant: () = Ident ("(" ")")? ("{" "}")?;
