@@ -1,7 +1,6 @@
-use java_ast_parser::ast::{self, ClassCell, EnumCell, InterfaceCell, Root};
+use java_ast_parser::ast::{self, ClassCell, EnumCell, GetIdent, InterfaceCell, Root};
 use orx_tree::{Bfs, Dyn, DynTree, NodeIdx, NodeRef};
 use std::{
-    cell::{Ref, RefCell},
     collections::HashMap,
     ops::{Deref, DerefMut},
     rc::Rc,
@@ -10,32 +9,20 @@ use std::{
 #[derive(Debug, Clone)]
 pub enum TreeNode {
     Root,
-    Package(RefCell<String>),
+    Package(Rc<String>),
     Class(ClassCell),
     Enum(EnumCell),
     Interface(InterfaceCell),
 }
 
 impl TreeNode {
-    pub fn ident(&self) -> Option<Ref<'_, str>> {
+    pub fn ident(&self) -> Option<&'_ str> {
         match self {
             TreeNode::Root => None,
-            TreeNode::Package(cell) => cell
-                .try_borrow()
-                .map(|cell_ref| Ref::map(cell_ref, |x| x.as_str()))
-                .ok(),
-            TreeNode::Class(cell) => cell
-                .try_borrow()
-                .map(|cell_ref| Ref::map(cell_ref, |x| x.ident.as_str()))
-                .ok(),
-            TreeNode::Enum(cell) => cell
-                .try_borrow()
-                .map(|cell_ref| Ref::map(cell_ref, |x| x.ident.as_str()))
-                .ok(),
-            TreeNode::Interface(cell) => cell
-                .try_borrow()
-                .map(|cell_ref| Ref::map(cell_ref, |x| x.ident.as_str()))
-                .ok(),
+            TreeNode::Package(ident) => Some(ident.as_str()),
+            TreeNode::Class(cell) => Some(cell.ident()),
+            TreeNode::Enum(cell) => Some(cell.ident()),
+            TreeNode::Interface(cell) => Some(cell.ident()),
         }
     }
 }
@@ -54,7 +41,7 @@ impl std::cmp::PartialEq for TreeNode {
     fn eq(&self, other: &Self) -> bool {
         match (self.ident(), other.ident()) {
             (None, None) => true,
-            (Some(l), Some(r)) => l.deref() == r.deref(),
+            (Some(l), Some(r)) => l == r,
             _ => false,
         }
     }
@@ -64,7 +51,7 @@ impl std::cmp::Eq for TreeNode {}
 
 impl From<&str> for TreeNode {
     fn from(value: &str) -> Self {
-        Self::Package(RefCell::from(String::from(value)))
+        Self::Package(Rc::from(value.to_string()))
     }
 }
 
@@ -314,7 +301,7 @@ impl GlobalIndexTree {
             };
 
             let node_idx = self.0.node(current_idx).children().find_map(|x| {
-                if x.data().ident().is_some_and(|x| x.deref() == ident) {
+                if x.data().ident().is_some_and(|x| x == ident) {
                     Some(x.idx())
                 } else {
                     None
@@ -365,7 +352,7 @@ impl ImportedIndexTree {
                     .node(current_idx)
                     .children()
                     .find_map(|x| {
-                        if x.data().ident().is_some_and(|x| x.deref() == import_part) {
+                        if x.data().ident().is_some_and(|x| x == import_part) {
                             Some(x.idx())
                         } else {
                             None
@@ -399,7 +386,7 @@ impl ImportedIndexTree {
             };
 
             let node_idx = self.0.node(current_idx).children().find_map(|x| {
-                if x.data().ident().is_some_and(|x| x.deref() == ident) {
+                if x.data().ident().is_some_and(|x| x == ident) {
                     Some(x.idx())
                 } else {
                     None
@@ -487,7 +474,7 @@ impl LocalIndexTree {
             };
 
             let Some(node_idx) = self.local.node(current_idx).children().find_map(|x| {
-                if x.data().ident().is_some_and(|x| x.deref() == ident) {
+                if x.data().ident().is_some_and(|x| x == ident) {
                     Some(x.idx())
                 } else {
                     None

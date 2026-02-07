@@ -5,43 +5,57 @@ use std::cell::RefCell;
 use std::ops::Deref;
 use std::rc::Rc;
 
+pub trait GetIdent {
+    fn ident(&self) -> &str;
+}
+
 #[allow(clippy::mutable_key_type)]
 #[derive(Debug, Clone)]
-pub struct ObjectCell<T>(Rc<RefCell<T>>);
+pub struct ObjectCell<T: GetIdent>(Rc<String>, Rc<RefCell<T>>);
 
-impl<T> From<T> for ObjectCell<T> {
+impl<T: GetIdent> GetIdent for ObjectCell<T> {
+    fn ident(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
+impl<T: GetIdent> From<T> for ObjectCell<T> {
     fn from(value: T) -> Self {
-        Self(Rc::new(RefCell::new(value)))
+        Self(
+            Rc::new(value.ident().to_string()),
+            Rc::new(RefCell::new(value)),
+        )
     }
 }
 
-impl<T> From<Rc<RefCell<T>>> for ObjectCell<T> {
+impl<T: GetIdent> From<Rc<RefCell<T>>> for ObjectCell<T> {
     fn from(value: Rc<RefCell<T>>) -> Self {
-        Self(value)
+        let ident = Rc::new(value.borrow().ident().to_string());
+        Self(ident, value)
     }
 }
 
-impl<T> Deref for ObjectCell<T> {
+impl<T: GetIdent> Deref for ObjectCell<T> {
     type Target = RefCell<T>;
 
     fn deref(&self) -> &Self::Target {
-        self.0.deref()
+        self.1.deref()
     }
 }
 
-impl<T> std::hash::Hash for ObjectCell<T> {
+impl<T: GetIdent> std::hash::Hash for ObjectCell<T> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        std::ptr::hash(self.0.deref().as_ptr(), state);
+        std::ptr::hash(self.1.deref().as_ptr(), state);
     }
 }
 
-impl<T> std::cmp::PartialEq for ObjectCell<T> {
+impl<T: GetIdent> std::cmp::PartialEq for ObjectCell<T> {
     fn eq(&self, other: &Self) -> bool {
-        self.0.as_ptr() == other.0.as_ptr()
+        self.1.as_ptr() == other.1.as_ptr()
     }
 }
 
-impl<T> std::cmp::Eq for ObjectCell<T> {}
+impl<T: GetIdent> std::cmp::Eq for ObjectCell<T> {}
 
 bitflags! {
     #[derive(Debug, Clone, PartialEq)]
@@ -124,25 +138,7 @@ impl std::fmt::Display for TypeName {
             TypeName::Double => write!(f, "double"),
             TypeName::Ident(ident) => write!(f, "{}", ident),
             TypeName::ResolvedGeneric(ident) => write!(f, "{}", ident),
-            TypeName::ResolvedClass(class_cell) => {
-                let class = class_cell.borrow();
-
-                if class.generics.is_empty() {
-                    write!(f, "{}", class.ident)
-                } else {
-                    write!(
-                        f,
-                        "{}<{}>",
-                        class.ident,
-                        class
-                            .generics
-                            .iter()
-                            .map(|part| part.to_string())
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    )
-                }
-            }
+            TypeName::ResolvedClass(class_cell) => write!(f, "{}", class_cell.ident()),
         }
     }
 }
@@ -345,6 +341,12 @@ pub struct Class {
     pub interfaces: Box<[InterfaceCell]>,
 }
 
+impl GetIdent for Class {
+    fn ident(&self) -> &str {
+        self.ident.as_str()
+    }
+}
+
 pub type ClassCell = ObjectCell<Class>;
 
 // impl std::fmt::Debug for Class {
@@ -435,6 +437,12 @@ pub struct Enum {
     pub interfaces: Box<[InterfaceCell]>,
 }
 
+impl GetIdent for Enum {
+    fn ident(&self) -> &str {
+        self.ident.as_str()
+    }
+}
+
 pub type EnumCell = ObjectCell<Enum>;
 
 // impl std::fmt::Debug for Enum {
@@ -519,6 +527,12 @@ pub struct Interface {
     pub classes: Box<[ClassCell]>,
     pub enums: Box<[EnumCell]>,
     pub interfaces: Box<[InterfaceCell]>,
+}
+
+impl GetIdent for Interface {
+    fn ident(&self) -> &str {
+        self.ident.as_str()
+    }
 }
 
 pub type InterfaceCell = ObjectCell<Interface>;
