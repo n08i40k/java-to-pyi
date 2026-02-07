@@ -70,11 +70,9 @@ fn resolve_qualified_type(
 }
 
 /// ChildPtr -> ParentPtr
-fn resolve_type_names<'a, T: IntoIterator<Item = &'a (ClassCell, &'a LocalIndexTree)>>(
+fn resolve_class_type_names<'a, T: IntoIterator<Item = &'a (ClassCell, &'a LocalIndexTree)>>(
     iter: T,
-) -> HashMap<ClassCell, ClassCell> {
-    let mut extends_map: HashMap<ClassCell, ClassCell> = HashMap::new();
-
+) {
     for (class_cell, local_index_tree) in iter {
         let mut class = class_cell.borrow_mut();
 
@@ -82,10 +80,6 @@ fn resolve_type_names<'a, T: IntoIterator<Item = &'a (ClassCell, &'a LocalIndexT
 
         if let Some(extends) = &mut class.extends {
             resolve_qualified_type(&generics, extends, Some(class_cell), local_index_tree);
-            if let Some(ast::TypeName::ResolvedClass(parent_cell)) = extends.last().map(|t| &t.name)
-            {
-                extends_map.insert(class_cell.clone(), parent_cell.clone());
-            }
         }
 
         for variable in &mut class.variables {
@@ -123,8 +117,6 @@ fn resolve_type_names<'a, T: IntoIterator<Item = &'a (ClassCell, &'a LocalIndexT
             }
         }
     }
-
-    extends_map
 }
 
 fn resolve_interface_type_names<
@@ -444,26 +436,6 @@ fn collect_generic_names(generics: &[ast::GenericDefinition]) -> Vec<String> {
     generics.iter().map(|g| g.ident.clone()).collect()
 }
 
-fn strip_unknown_extends<'a, T: IntoIterator<Item = &'a ClassCell>>(
-    classes_iter: T,
-    _extends_map: &HashMap<ClassCell, ClassCell>,
-) {
-    for class_cell in classes_iter {
-        let mut class = class_cell.borrow_mut();
-
-        match &mut class.extends {
-            None => continue,
-            Some(q) => {
-                if let ast::TypeName::ResolvedClass(_) = q.last().unwrap().name {
-                    continue;
-                }
-            }
-        }
-
-        class.extends = None;
-    }
-}
-
 #[derive(Debug)]
 pub struct Scope {
     pub ast: Rc<ast::Root>,
@@ -525,14 +497,7 @@ pub fn preprocess_asts(roots: &[Rc<ast::Root>]) {
     let scoped_interfaces = collect_scoped_interfaces(&scopes);
     let scoped_enums = collect_scoped_enums(&scopes);
 
-    let extends_map = resolve_type_names(&scoped_classes);
+    resolve_class_type_names(&scoped_classes);
     resolve_interface_type_names(&scoped_interfaces);
     resolve_enum_type_names(&scoped_enums);
-
-    let classes = scoped_classes
-        .into_iter()
-        .map(|(x, _)| x)
-        .collect::<Box<_>>();
-
-    strip_unknown_extends(&classes, &extends_map);
 }
