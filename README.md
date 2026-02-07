@@ -35,7 +35,7 @@ find ./Telegram/TMessagesProj/src/main/java/ -type f \( -name '*.java' \) -exec 
 3. Start generator
 
 ```
-java-to-pyi -i ./Telegram/TMessagesProj/src/main/java -o ./ -p java
+java-to-pyi -i ./Telegram/TMessagesProj/src/main/java -o ./
 ```
 
-Where `-i` is root directory of java source code, `-o` is output directory for directory named as `-p` argument value and `-p` is *prefix* package (`com.package.Class` will be `java.com.package.Class`).
+Where `-i` is root directory of java source code and `-o` is output directory for generated package stubs.

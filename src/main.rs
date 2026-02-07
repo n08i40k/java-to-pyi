@@ -66,14 +66,10 @@ fn main() {
 
     preprocess_asts(&asts);
 
-    let outputs = generate_pyi_by_package(&asts, &options.namespace_prefix);
+    let outputs = generate_pyi_by_package(&asts);
 
     for (package, contents) in outputs {
-        let file_path = package_to_path(
-            &options.out_dir,
-            &package,
-            &options.namespace_prefix,
-        );
+        let file_path = package_to_path(&options.out_dir, &package);
         if let Some(parent) = file_path.parent() {
             fs::create_dir_all(parent).unwrap();
         }
@@ -83,14 +79,8 @@ fn main() {
     }
 }
 
-fn package_to_path(out_dir: &Path, package: &str, namespace_prefix: &str) -> PathBuf {
+fn package_to_path(out_dir: &Path, package: &str) -> PathBuf {
     let mut path = PathBuf::from(out_dir);
-
-    for part in namespace_prefix.trim_matches('.').split('.') {
-        if !part.is_empty() {
-            path.push(part);
-        }
-    }
 
     if package.is_empty() {
         path.push("__init__.pyi");
@@ -126,13 +116,11 @@ fn ensure_parent_inits(file_path: &Path, out_dir: &Path) -> std::io::Result<()> 
 struct CliOptions {
     inputs: Vec<PathBuf>,
     out_dir: PathBuf,
-    namespace_prefix: String,
 }
 
 fn parse_args(args: Vec<String>) -> Result<CliOptions, String> {
     let mut inputs = Vec::new();
     let mut out_dir = PathBuf::from("out");
-    let mut namespace_prefix: Option<String> = None;
     let mut iter = args.into_iter();
     let _program = iter.next();
 
@@ -150,16 +138,6 @@ fn parse_args(args: Vec<String>) -> Result<CliOptions, String> {
                     .ok_or_else(|| "missing value for --out".to_string())?;
                 out_dir = PathBuf::from(value);
             }
-            "-p" | "--prefix" | "--namespace" => {
-                let value = iter
-                    .next()
-                    .ok_or_else(|| "missing value for --prefix".to_string())?;
-                let trimmed = value.trim().trim_matches('.').to_string();
-                if trimmed.is_empty() {
-                    return Err(String::from("prefix cannot be empty"));
-                }
-                namespace_prefix = Some(trimmed);
-            }
             "-h" | "--help" => {
                 return Err(String::from("help requested"));
             }
@@ -175,25 +153,20 @@ fn parse_args(args: Vec<String>) -> Result<CliOptions, String> {
     if inputs.is_empty() {
         return Err(String::from("no inputs provided"));
     }
-    if namespace_prefix.is_none() {
-        return Err(String::from("missing required --prefix"));
-    }
 
     Ok(CliOptions {
         inputs,
         out_dir,
-        namespace_prefix: namespace_prefix.unwrap(),
     })
 }
 
 fn usage() -> String {
     [
         "Usage:",
-        "  java-to-pyi -i <path> [-i <path> ...] --prefix <pkg> [--out <dir>]",
+        "  java-to-pyi -i <path> [-i <path> ...] [--out <dir>]",
         "",
         "Options:",
         "  -i, --input <path>      Input file or directory (recurses for .java)",
-        "  -p, --prefix <pkg>      Namespace prefix (e.g. java_interop) (required)",
         "  -o, --out <dir>         Output directory (default: out)",
         "  -h, --help              Show this help",
     ]
