@@ -299,7 +299,6 @@ dependencies = [
  "lalrpop-util",
  "log",
  "orx-tree",
- "topo_sort",
 ]
 
 [[package]]
@@ -870,12 +869,6 @@ checksum = "d8c27177b12a6399ffc08b98f76f7c9a1f4fe9fc967c784c5a071fa8d93cf7e1"
 dependencies = [
  "windows-sys",
 ]
-
-[[package]]
-name = "topo_sort"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "156552d3c80df430aaac98c605a4e0eb7da8d06029cce2d40b4a6b095a34b37e"
 
 [[package]]
 name = "typenum"

@@ -2,7 +2,6 @@ use std::{collections::HashMap, fs, ops::Deref, path::Path, rc::Rc};
 
 use java_ast_parser::ast::{self, ClassCell, EnumCell, InterfaceCell, Type, TypeGeneric, TypeName};
 use log::warn;
-use topo_sort::{SortResults, TopoSort};
 
 use crate::index_tree::{GlobalIndexTree, ImportedIndexTree, LocalIndexTree, PackageIndexTree};
 
@@ -445,37 +444,6 @@ fn collect_generic_names(generics: &[ast::GenericDefinition]) -> Vec<String> {
     generics.iter().map(|g| g.ident.clone()).collect()
 }
 
-fn merge_inherited_members<'a, T: IntoIterator<Item = &'a ClassCell>>(
-    classes_iter: T,
-    extends_map: &HashMap<ClassCell, ClassCell>,
-) {
-    for class_cell in classes_iter {
-        let mut class = class_cell.borrow_mut();
-
-        if class.extends.is_none() {
-            continue;
-        }
-
-        let Some(parent_cell) = extends_map.get(class_cell) else {
-            continue;
-        };
-
-        let parent = parent_cell.borrow();
-
-        class.variables = {
-            let mut variables = parent.variables.clone().into_vec();
-            variables.extend_from_slice(&class.variables);
-            variables.into_boxed_slice()
-        };
-
-        class.functions = {
-            let mut functions = parent.functions.clone().into_vec();
-            functions.extend_from_slice(&class.functions);
-            functions.into_boxed_slice()
-        };
-    }
-}
-
 fn strip_unknown_extends<'a, T: IntoIterator<Item = &'a ClassCell>>(
     classes_iter: T,
     _extends_map: &HashMap<ClassCell, ClassCell>,
@@ -494,27 +462,6 @@ fn strip_unknown_extends<'a, T: IntoIterator<Item = &'a ClassCell>>(
 
         class.extends = None;
     }
-}
-
-fn topo_sort_extendables<'a, T: IntoIterator<Item = &'a ClassCell>>(
-    classes_iter: T,
-    classes_iter_len: usize,
-) -> Option<Box<[ClassCell]>> {
-    let mut topo_sort = TopoSort::with_capacity(classes_iter_len);
-
-    for class_cell in classes_iter {
-        if let Some(q) = &class_cell.borrow().extends
-            && let ast::TypeName::ResolvedClass(type_cell) = &q.last().unwrap().name
-        {
-            topo_sort.insert(class_cell.clone(), vec![type_cell.clone()]);
-        }
-    }
-
-    let SortResults::Full(nodes) = topo_sort.into_vec_nodes() else {
-        return None;
-    };
-
-    Some(nodes.into_boxed_slice())
 }
 
 #[derive(Debug)]
@@ -571,12 +518,7 @@ impl Scope {
     }
 }
 
-#[derive(Debug)]
-pub enum Error {
-    CircullarDependency,
-}
-
-pub fn preprocess_asts(roots: &[Rc<ast::Root>], inherit_by_merge: bool) -> Result<(), Error> {
+pub fn preprocess_asts(roots: &[Rc<ast::Root>]) {
     let scopes = Scope::from_roots(roots);
 
     let scoped_classes = collect_scoped_classes(&scopes);
@@ -593,13 +535,4 @@ pub fn preprocess_asts(roots: &[Rc<ast::Root>], inherit_by_merge: bool) -> Resul
         .collect::<Box<_>>();
 
     strip_unknown_extends(&classes, &extends_map);
-
-    if inherit_by_merge {
-        let sorted_classes =
-            topo_sort_extendables(&classes, classes.len()).ok_or(Error::CircullarDependency)?;
-
-        merge_inherited_members(&sorted_classes, &extends_map);
-    }
-
-    Ok(())
 }
