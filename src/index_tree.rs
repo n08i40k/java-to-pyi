@@ -275,7 +275,7 @@ impl<'a> FromIterator<&'a PackageIndexTree> for GlobalIndexTree {
 
         for package_index_tree in iter {
             let package_idx = {
-                let mut current_idx = root_idx.clone();
+                let mut current_idx = root_idx;
 
                 for node in package_index_tree.package().split('.').map(TreeNode::from) {
                     let node_idx = tree.node(current_idx).children().find_map(|x| {
@@ -479,7 +479,7 @@ impl LocalIndexTree {
             }
         };
 
-        let mut current_idx = root_idx.clone();
+        let mut current_idx = root_idx;
 
         for query_part in query.iter() {
             let ast::TypeName::Ident(ident) = &query_part.name else {

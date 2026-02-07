@@ -2,7 +2,7 @@ use std::collections::{BTreeSet, HashMap};
 use std::rc::Rc;
 
 use java_ast_parser::ast::{
-    self, ClassCell, EnumCell, Function, InterfaceCell, Modifiers, QualifiedType, Root, Type,
+    self, ClassCell, EnumCell, Function, InterfaceCell, Modifiers, QualifiedType, Root,
     TypeGeneric, TypeName, WildcardBoundary,
 };
 
@@ -118,7 +118,7 @@ impl PyiEmitter {
         };
 
         let mut line = format!("class {}{}:", class.ident, bases_suffix);
-        if rendered_bases.unknown.len() > 0 {
+        if !rendered_bases.unknown.is_empty() {
             line.push_str(&format!(
                 "  # unknown type(s) [{}] used in {}",
                 rendered_bases.unknown.join(", "),
@@ -197,7 +197,7 @@ impl PyiEmitter {
         };
 
         let mut line = format!("class {}{}:", interface.ident, bases_suffix);
-        if rendered_bases.unknown.len() > 0 {
+        if !rendered_bases.unknown.is_empty() {
             line.push_str(&format!(
                 "  # unknown type(s) [{}] used in {}",
                 rendered_bases.unknown.join(", "),
@@ -276,7 +276,7 @@ impl PyiEmitter {
         };
 
         let mut line = format!("class {}{}:", r#enum.ident, bases_suffix);
-        if rendered_bases.unknown.len() > 0 {
+        if !rendered_bases.unknown.is_empty() {
             line.push_str(&format!(
                 "  # unknown type(s) [{}] used in {}",
                 rendered_bases.unknown.join(", "),
@@ -420,7 +420,7 @@ impl PyiEmitter {
     }
 }
 
-fn group_functions<'a>(functions: &'a [Function]) -> Vec<Vec<&'a Function>> {
+fn group_functions(functions: &[Function]) -> Vec<Vec<&Function>> {
     let mut order: Vec<String> = Vec::new();
     let mut grouped: HashMap<String, Vec<&Function>> = HashMap::new();
 
@@ -499,10 +499,10 @@ fn collect_module_imports(
         definition_paths: &DefinitionPaths,
         class_cell: &ClassCell,
     ) {
-        if let Some(module_path) = definition_paths.class_module(class_cell) {
-            if !module_path.is_empty() {
-                modules.insert(module_path.to_string());
-            }
+        if let Some(module_path) = definition_paths.class_module(class_cell)
+            && !module_path.is_empty()
+        {
+            modules.insert(module_path.to_string());
         }
     }
 
@@ -825,7 +825,7 @@ impl RenderedType {
     }
 
     fn has_unknown(&self) -> bool {
-        self.unknown.len() > 0
+        !self.unknown.is_empty()
     }
 }
 
@@ -1005,12 +1005,13 @@ fn collect_definition_paths(roots: &[Rc<Root>]) -> DefinitionPaths {
         paths
             .class_paths
             .insert(class_cell.clone(), class_path.clone());
-        if let Some(module_path) = module_path {
-            if !module_path.is_empty() {
-                paths
-                    .class_modules
-                    .insert(class_cell.clone(), module_path.to_string());
-            }
+
+        if let Some(module_path) = module_path
+            && !module_path.is_empty()
+        {
+            paths
+                .class_modules
+                .insert(class_cell.clone(), module_path.to_string());
         }
 
         for nested in &class.classes {
@@ -1089,28 +1090,13 @@ fn collect_definition_paths(roots: &[Rc<Root>]) -> DefinitionPaths {
         };
 
         for class_cell in &root.classes {
-            walk_class(
-                &mut paths,
-                class_cell,
-                package_prefix,
-                package_prefix,
-            );
+            walk_class(&mut paths, class_cell, package_prefix, package_prefix);
         }
         for interface_cell in &root.interfaces {
-            walk_interface(
-                &mut paths,
-                interface_cell,
-                package_prefix,
-                package_prefix,
-            );
+            walk_interface(&mut paths, interface_cell, package_prefix, package_prefix);
         }
         for enum_cell in &root.enums {
-            walk_enum(
-                &mut paths,
-                enum_cell,
-                package_prefix,
-                package_prefix,
-            );
+            walk_enum(&mut paths, enum_cell, package_prefix, package_prefix);
         }
     }
 

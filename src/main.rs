@@ -1,3 +1,5 @@
+#![allow(clippy::mutable_key_type)]
+
 use std::{
     env, fs,
     path::{Path, PathBuf},
@@ -154,10 +156,7 @@ fn parse_args(args: Vec<String>) -> Result<CliOptions, String> {
         return Err(String::from("no inputs provided"));
     }
 
-    Ok(CliOptions {
-        inputs,
-        out_dir,
-    })
+    Ok(CliOptions { inputs, out_dir })
 }
 
 fn usage() -> String {
