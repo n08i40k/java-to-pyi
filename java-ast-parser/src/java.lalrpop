@@ -95,7 +95,14 @@ extern {
 }
 
 #[inline]
-Path: Cow<'input, str> = <l:@L> Ident ("." Ident)* <r:@R> => Cow::from(&input[l..r]);
+UnsafeIdent: Cow<'input, str> = {
+  <Ident> => <>,
+  "module" => Cow::from("module"),
+  "this" => Cow::from("this"),
+};
+
+#[inline]
+Path: Cow<'input, str> = <l:@L> UnsafeIdent ("." UnsafeIdent)* <r:@R> => Cow::from(&input[l..r]);
 
 CommaList<T>: Box<[T]> = <first:T> <mut rest:("," <T>)*> => { rest.insert(0, first); rest.into_boxed_slice() };
 TrailingCommaList<T>: Box<[T]> = <first:T> <mut rest:("," <T>)*> "," => { rest.insert(0, first); rest.into_boxed_slice() };
@@ -113,7 +120,7 @@ PeriodList<T>: Box<[T]> = <first:T> <mut rest:("." <T>)*> => { rest.insert(0, fi
 Package: Cow<'input, str> = "package" <p:Path> ";" => p;
 
 #[inline]
-ImportPath: Cow<'input, str> = <l:@L> Ident ("." Ident)* ("." "*")? <r:@R> => Cow::from(&input[l..r]);
+ImportPath: Cow<'input, str> = <l:@L> UnsafeIdent ("." UnsafeIdent)* ("." "*")? <r:@R> => Cow::from(&input[l..r]);
 Import: Cow<'input, str> = "import" "static"? <p:ImportPath> ";" => p;
 
 Modifier: ast::Modifiers = {
@@ -168,12 +175,12 @@ Type: ast::Type
 QualifiedType: ast::QualifiedType = PeriodList<Type> => <>;
 
 #[inline]
-IdentWithArray: (Cow<'input, str>, usize) 
-  = <i:Ident> <a:("[" "]")*>
+UnsafeIdentWithArray: (Cow<'input, str>, usize) 
+  = <i:UnsafeIdent> <a:("[" "]")*>
   => (i, a.len());
 
 Variables: Box<[ast::Variable]> 
-  = <m:Modifiers> <t:QualifiedType> <i:CommaList<IdentWithArray>> ";" 
+  = <m:Modifiers> <t:QualifiedType> <i:CommaList<UnsafeIdentWithArray>> ";" 
   => ast::Variable::new_array(m, t, i);
 
 GenericDefinitionsExtends: Box<[ast::QualifiedType]> = "extends" <e:AmpersandList<QualifiedType>> => e;
@@ -186,14 +193,8 @@ GenericDefinitions: Box<[ast::GenericDefinition]>
   = "<" <g:CommaList<GenericDefinition>> ">"
   => g;
 
-#[inline]
-FunctionArgumentIdent: Cow<'input, str> = {
-  Ident => <>,
-  "this" => Cow::from("this"),
-};
-
 FunctionArgument: ast::FunctionArgument
-  = <m:Modifiers> <mut t:QualifiedType> <v:"..."?> <i:FunctionArgumentIdent> <a:("[" "]")*> 
+  = <m:Modifiers> <mut t:QualifiedType> <v:"..."?> <i:UnsafeIdent> <a:("[" "]")*> 
   => ast::FunctionArgument {
     modifiers: m,
     r#type: { t.last_mut().unwrap().array_depth += a.len(); t },
