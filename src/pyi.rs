@@ -141,6 +141,11 @@ impl PyiEmitter {
         self.indent += 1;
 
         let mut has_members = false;
+        let has_explicit_init = class.functions.iter().any(|function| function.ident == "__init__");
+        if !has_explicit_init {
+            has_members = true;
+            self.line("def __init__(self, *args: Any, **kwargs: Any) -> None: ...".to_string());
+        }
 
         for variable in &class.variables {
             has_members = true;
