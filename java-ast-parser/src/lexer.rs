@@ -1,12 +1,12 @@
-//! Tokenization for Protocol Buffers sources.
+//! Tokenization for Java sources.
 //!
 //! # Examples
 //! ```rust
-//! use protobuf_ast_parser::lexer::{Lexer, Token};
+//! use java_ast_parser::lexer::{Lexer, Token};
 //!
-//! let mut lexer = Lexer::new("syntax = \"proto3\";");
+//! let mut lexer = Lexer::new("package com.example;");
 //! let first = lexer.next().unwrap().unwrap();
-//! assert_eq!(first.1, Token::Syntax);
+//! assert_eq!(first.1, Token::KeywordPackage);
 //! ```
 
 use itertools::{Itertools, MultiPeek};
