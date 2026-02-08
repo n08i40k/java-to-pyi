@@ -116,13 +116,17 @@ impl PyiEmitter {
         let class_type_params = extend_type_params(outer_type_params, &class.generics);
         let type_params_suffix = format_type_params(&class.generics);
         let class_path = self.definition_paths.class_path(class_cell);
-        let rendered_bases =
+        let mut rendered_bases =
             collect_class_base_types(&class, &self.type_renderer, &class_type_params);
-        let bases = rendered_bases.bases;
-        let bases_suffix = if bases.is_empty() {
+        if let Some(special_base) = java_stdlib_python_base(&class_path, &class.generics) {
+            if !rendered_bases.bases.iter().any(|base| base == &special_base) {
+                rendered_bases.bases.insert(0, special_base);
+            }
+        }
+        let bases_suffix = if rendered_bases.bases.is_empty() {
             String::new()
         } else {
-            format!("({})", bases.join(", "))
+            format!("({})", rendered_bases.bases.join(", "))
         };
 
         let mut line = format!("class {}{}{}:", class.ident, type_params_suffix, bases_suffix);
@@ -209,16 +213,20 @@ impl PyiEmitter {
         let interface_type_params = extend_type_params(outer_type_params, &interface.generics);
         let type_params_suffix = format_type_params(&interface.generics);
         let interface_path = self.definition_paths.interface_path(interface_cell);
-        let rendered_bases = collect_interface_base_types(
+        let mut rendered_bases = collect_interface_base_types(
             &interface,
             &self.type_renderer,
             &interface_type_params,
         );
-        let bases = rendered_bases.bases;
-        let bases_suffix = if bases.is_empty() {
+        if let Some(special_base) = java_stdlib_python_base(&interface_path, &interface.generics) {
+            if !rendered_bases.bases.iter().any(|base| base == &special_base) {
+                rendered_bases.bases.insert(0, special_base);
+            }
+        }
+        let bases_suffix = if rendered_bases.bases.is_empty() {
             String::new()
         } else {
-            format!("({})", bases.join(", "))
+            format!("({})", rendered_bases.bases.join(", "))
         };
 
         let mut line =
@@ -725,6 +733,35 @@ fn collect_module_imports(
 struct RenderedBases {
     bases: Vec<String>,
     unknown: Box<[String]>,
+}
+
+fn generic_ident_or_any(generics: &[ast::GenericDefinition], index: usize) -> String {
+    generics
+        .get(index)
+        .map(|generic| generic.ident.clone())
+        .unwrap_or_else(|| "Any".to_string())
+}
+
+fn java_stdlib_python_base(
+    definition_path: &str,
+    generics: &[ast::GenericDefinition],
+) -> Option<String> {
+    match definition_path {
+        "java.util.Map" => {
+            let key = generic_ident_or_any(generics, 0);
+            let value = generic_ident_or_any(generics, 1);
+            Some(format!("dict[{}, {}]", key, value))
+        }
+        "java.util.List" => Some(format!("list[{}]", generic_ident_or_any(generics, 0))),
+        "java.util.Set" => Some(format!("set[{}]", generic_ident_or_any(generics, 0))),
+        "java.lang.Boolean" => Some("bool".to_string()),
+        "java.lang.Integer" | "java.lang.Byte" | "java.lang.Long" | "java.lang.Short" => {
+            Some("int".to_string())
+        }
+        "java.lang.Double" | "java.lang.Float" => Some("float".to_string()),
+        "java.lang.String" => Some("str".to_string()),
+        _ => None,
+    }
 }
 
 fn collect_class_base_types(
