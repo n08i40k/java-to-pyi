@@ -20,16 +20,34 @@ cargo install --path .
 
 ## Usage example
 
-1. Clone Telegram for Android source code
+1. Clone OpenJDK source code (required for all use-cases, otherwise, non-promitive java types won't be resolved)
+
+```
+git clone https://github.com/openjdk/jdk
+```
+
+2. Remove sample file from OpenJDK source code
+
+```
+rm ./jdk/src/java.base/share/classes/java/lang/snippet-files/ProcessExamples.java
+```
+
+3. Clone Telegram for Android source code
 
 ```
 git clone https://github.com/DrKLO/Telegram
 ```
 
-2. Start generator
+4. Create directory for stub files
 
 ```
-java-to-pyi -i ./Telegram/TMessagesProj/src/main/java -o ./
+mkdir stubs
 ```
 
-Where `-i` is root directory of java source code and `-o` is output directory for generated package stubs.
+5. Start generator
+
+```
+java-to-pyi -i ./jdk/src/java.base/share/classes/java/ -i ./Telegram/TMessagesProj/src/main/java/ -o ./stubs
+```
+
+Where `-i` is directories with `.java` files and `-o` is output directory for generated stubs.
