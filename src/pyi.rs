@@ -47,26 +47,22 @@ pub fn generate_pyi_by_package(roots: &[Rc<Root>]) -> HashMap<String, String> {
             total_packages,
             label
         ));
-        let type_params = collect_type_params(&package_roots);
         let module_imports = collect_module_imports(&package_roots, &definition_paths);
-        let mut emitter = PyiEmitter::new(
-            type_params,
-            class_paths.clone(),
-            definition_paths.clone(),
-            module_imports,
-        );
+        let mut emitter =
+            PyiEmitter::new(class_paths.clone(), definition_paths.clone(), module_imports);
 
         emitter.emit_header();
 
+        let empty_type_params = BTreeSet::new();
         for root in &package_roots {
             for class_cell in &root.classes {
-                emitter.emit_class(class_cell);
+                emitter.emit_class(class_cell, &empty_type_params);
             }
             for interface_cell in &root.interfaces {
-                emitter.emit_interface(interface_cell);
+                emitter.emit_interface(interface_cell, &empty_type_params);
             }
             for enum_cell in &root.enums {
-                emitter.emit_enum(enum_cell);
+                emitter.emit_enum(enum_cell, &empty_type_params);
             }
         }
 
@@ -79,7 +75,6 @@ pub fn generate_pyi_by_package(roots: &[Rc<Root>]) -> HashMap<String, String> {
 struct PyiEmitter {
     output: String,
     indent: usize,
-    type_params: BTreeSet<String>,
     type_renderer: TypeRenderer,
     definition_paths: Rc<DefinitionPaths>,
     module_imports: BTreeSet<String>,
@@ -87,7 +82,6 @@ struct PyiEmitter {
 
 impl PyiEmitter {
     fn new(
-        type_params: BTreeSet<String>,
         class_paths: Rc<HashMap<ClassCell, String>>,
         definition_paths: Rc<DefinitionPaths>,
         module_imports: BTreeSet<String>,
@@ -95,7 +89,6 @@ impl PyiEmitter {
         Self {
             output: String::new(),
             indent: 0,
-            type_params,
             type_renderer: TypeRenderer::new(class_paths),
             definition_paths,
             module_imports,
@@ -108,22 +101,17 @@ impl PyiEmitter {
         for module_import in module_imports {
             self.line(format!("import {}", module_import));
         }
-        self.line("from typing import Any, TypeVar, overload".to_string());
+        self.line("from typing import Any, overload".to_string());
         self.blank_line();
-
-        if !self.type_params.is_empty() {
-            let params = self.type_params.iter().cloned().collect::<Vec<_>>();
-            for type_param in params {
-                self.line(format!("{} = TypeVar(\"{}\")", type_param, type_param));
-            }
-            self.blank_line();
-        }
     }
 
-    fn emit_class(&mut self, class_cell: &ClassCell) {
+    fn emit_class(&mut self, class_cell: &ClassCell, outer_type_params: &BTreeSet<String>) {
         let class = class_cell.borrow();
+        let class_type_params = extend_type_params(outer_type_params, &class.generics);
+        let type_params_suffix = format_type_params(&class.generics);
         let class_path = self.definition_paths.class_path(class_cell);
-        let rendered_bases = collect_class_base_types(&class, &self.type_renderer);
+        let rendered_bases =
+            collect_class_base_types(&class, &self.type_renderer, &class_type_params);
         let bases = rendered_bases.bases;
         let bases_suffix = if bases.is_empty() {
             String::new()
@@ -131,7 +119,7 @@ impl PyiEmitter {
             format!("({})", bases.join(", "))
         };
 
-        let mut line = format!("class {}{}:", class.ident, bases_suffix);
+        let mut line = format!("class {}{}{}:", class.ident, type_params_suffix, bases_suffix);
         if !rendered_bases.unknown.is_empty() {
             line.push_str(&format!(
                 "  # unknown type(s) [{}] used in {}",
@@ -146,7 +134,7 @@ impl PyiEmitter {
 
         for variable in &class.variables {
             has_members = true;
-            let rendered = self.type_renderer.render(&variable.r#type);
+            let rendered = self.type_renderer.render(&variable.r#type, &class_type_params);
             let ident = sanitize_ident(&variable.ident);
             let mut line = format!("{}: {}", ident, rendered.text);
             if rendered.has_unknown() {
@@ -174,21 +162,28 @@ impl PyiEmitter {
             let use_overload = filtered.len() > 1;
             for function in filtered {
                 has_members = true;
-                self.emit_function(function, use_overload, &class_path);
+                let function_type_params =
+                    extend_type_params(&class_type_params, &function.generics);
+                self.emit_function(
+                    function,
+                    use_overload,
+                    &class_path,
+                    &function_type_params,
+                );
             }
         }
 
         for nested_class in &class.classes {
             has_members = true;
-            self.emit_class(nested_class);
+            self.emit_class(nested_class, &class_type_params);
         }
         for nested_interface in &class.interfaces {
             has_members = true;
-            self.emit_interface(nested_interface);
+            self.emit_interface(nested_interface, &class_type_params);
         }
         for nested_enum in &class.enums {
             has_members = true;
-            self.emit_enum(nested_enum);
+            self.emit_enum(nested_enum, &class_type_params);
         }
 
         if !has_members {
@@ -199,10 +194,20 @@ impl PyiEmitter {
         self.blank_line();
     }
 
-    fn emit_interface(&mut self, interface_cell: &InterfaceCell) {
+    fn emit_interface(
+        &mut self,
+        interface_cell: &InterfaceCell,
+        outer_type_params: &BTreeSet<String>,
+    ) {
         let interface = interface_cell.borrow();
+        let interface_type_params = extend_type_params(outer_type_params, &interface.generics);
+        let type_params_suffix = format_type_params(&interface.generics);
         let interface_path = self.definition_paths.interface_path(interface_cell);
-        let rendered_bases = collect_interface_base_types(&interface, &self.type_renderer);
+        let rendered_bases = collect_interface_base_types(
+            &interface,
+            &self.type_renderer,
+            &interface_type_params,
+        );
         let bases = rendered_bases.bases;
         let bases_suffix = if bases.is_empty() {
             String::new()
@@ -210,7 +215,8 @@ impl PyiEmitter {
             format!("({})", bases.join(", "))
         };
 
-        let mut line = format!("class {}{}:", interface.ident, bases_suffix);
+        let mut line =
+            format!("class {}{}{}:", interface.ident, type_params_suffix, bases_suffix);
         if !rendered_bases.unknown.is_empty() {
             line.push_str(&format!(
                 "  # unknown type(s) [{}] used in {}",
@@ -225,7 +231,9 @@ impl PyiEmitter {
 
         for variable in &interface.variables {
             has_members = true;
-            let rendered = self.type_renderer.render(&variable.r#type);
+            let rendered = self
+                .type_renderer
+                .render(&variable.r#type, &interface_type_params);
             let ident = sanitize_ident(&variable.ident);
             let mut line = format!("{}: {}", ident, rendered.text);
             if rendered.has_unknown() {
@@ -253,21 +261,28 @@ impl PyiEmitter {
             let use_overload = filtered.len() > 1;
             for function in filtered {
                 has_members = true;
-                self.emit_function(function, use_overload, &interface_path);
+                let function_type_params =
+                    extend_type_params(&interface_type_params, &function.generics);
+                self.emit_function(
+                    function,
+                    use_overload,
+                    &interface_path,
+                    &function_type_params,
+                );
             }
         }
 
         for nested_class in &interface.classes {
             has_members = true;
-            self.emit_class(nested_class);
+            self.emit_class(nested_class, &interface_type_params);
         }
         for nested_interface in &interface.interfaces {
             has_members = true;
-            self.emit_interface(nested_interface);
+            self.emit_interface(nested_interface, &interface_type_params);
         }
         for nested_enum in &interface.enums {
             has_members = true;
-            self.emit_enum(nested_enum);
+            self.emit_enum(nested_enum, &interface_type_params);
         }
 
         if !has_members {
@@ -278,10 +293,13 @@ impl PyiEmitter {
         self.blank_line();
     }
 
-    fn emit_enum(&mut self, enum_cell: &EnumCell) {
+    fn emit_enum(&mut self, enum_cell: &EnumCell, outer_type_params: &BTreeSet<String>) {
         let r#enum = enum_cell.borrow();
+        let enum_type_params = extend_type_params(outer_type_params, &r#enum.generics);
+        let type_params_suffix = format_type_params(&r#enum.generics);
         let enum_path = self.definition_paths.enum_path(enum_cell);
-        let rendered_bases = collect_enum_base_types(&r#enum, &self.type_renderer);
+        let rendered_bases =
+            collect_enum_base_types(&r#enum, &self.type_renderer, &enum_type_params);
         let bases = rendered_bases.bases;
         let bases_suffix = if bases.is_empty() {
             String::new()
@@ -289,7 +307,7 @@ impl PyiEmitter {
             format!("({})", bases.join(", "))
         };
 
-        let mut line = format!("class {}{}:", r#enum.ident, bases_suffix);
+        let mut line = format!("class {}{}{}:", r#enum.ident, type_params_suffix, bases_suffix);
         if !rendered_bases.unknown.is_empty() {
             line.push_str(&format!(
                 "  # unknown type(s) [{}] used in {}",
@@ -304,7 +322,7 @@ impl PyiEmitter {
 
         for variable in &r#enum.variables {
             has_members = true;
-            let rendered = self.type_renderer.render(&variable.r#type);
+            let rendered = self.type_renderer.render(&variable.r#type, &enum_type_params);
             let ident = sanitize_ident(&variable.ident);
             let mut line = format!("{}: {}", ident, rendered.text);
             if rendered.has_unknown() {
@@ -332,21 +350,22 @@ impl PyiEmitter {
             let use_overload = filtered.len() > 1;
             for function in filtered {
                 has_members = true;
-                self.emit_function(function, use_overload, &enum_path);
+                let function_type_params = extend_type_params(&enum_type_params, &function.generics);
+                self.emit_function(function, use_overload, &enum_path, &function_type_params);
             }
         }
 
         for nested_class in &r#enum.classes {
             has_members = true;
-            self.emit_class(nested_class);
+            self.emit_class(nested_class, &enum_type_params);
         }
         for nested_interface in &r#enum.interfaces {
             has_members = true;
-            self.emit_interface(nested_interface);
+            self.emit_interface(nested_interface, &enum_type_params);
         }
         for nested_enum in &r#enum.enums {
             has_members = true;
-            self.emit_enum(nested_enum);
+            self.emit_enum(nested_enum, &enum_type_params);
         }
 
         if !has_members {
@@ -357,7 +376,13 @@ impl PyiEmitter {
         self.blank_line();
     }
 
-    fn emit_function(&mut self, function: &Function, use_overload: bool, class_path: &str) {
+    fn emit_function(
+        &mut self,
+        function: &Function,
+        use_overload: bool,
+        class_path: &str,
+        type_params: &BTreeSet<String>,
+    ) {
         if use_overload {
             self.line("@overload".to_string());
         }
@@ -375,7 +400,7 @@ impl PyiEmitter {
 
         let mut unknown_paths = HashMap::new();
         for argument in &function.arguments {
-            let rendered = self.type_renderer.render(&argument.r#type);
+            let rendered = self.type_renderer.render(&argument.r#type, type_params);
             let arg_prefix = if argument.vararg { "*" } else { "" };
             let ident = sanitize_ident(&argument.ident);
             args.push(format!("{}{}: {}", arg_prefix, ident, rendered.text));
@@ -387,7 +412,7 @@ impl PyiEmitter {
             }
         }
 
-        let rendered_return = self.type_renderer.render(&function.return_type);
+        let rendered_return = self.type_renderer.render(&function.return_type, type_params);
         if rendered_return.has_unknown() {
             unknown_paths.insert(
                 format!("{}.{}", class_path, function.ident),
@@ -395,9 +420,11 @@ impl PyiEmitter {
             );
         }
 
+        let type_params_suffix = format_type_params(&function.generics);
         let mut line = format!(
-            "def {}({}) -> {}: ...",
+            "def {}{}({}) -> {}: ...",
             function.ident,
+            type_params_suffix,
             args.join(", "),
             rendered_return.text
         );
@@ -676,18 +703,22 @@ struct RenderedBases {
     unknown: Box<[String]>,
 }
 
-fn collect_class_base_types(class: &ast::Class, type_renderer: &TypeRenderer) -> RenderedBases {
+fn collect_class_base_types(
+    class: &ast::Class,
+    type_renderer: &TypeRenderer,
+    type_params: &BTreeSet<String>,
+) -> RenderedBases {
     let mut bases = Vec::new();
     let mut unknown = Vec::new();
 
     if let Some(extends) = &class.extends {
-        let rendered = type_renderer.render(extends);
+        let rendered = type_renderer.render(extends, type_params);
         unknown.extend(rendered.unknown);
         bases.push(rendered.text);
     }
 
     for implemented in &class.implements {
-        let rendered = type_renderer.render(implemented);
+        let rendered = type_renderer.render(implemented, type_params);
         unknown.extend(rendered.unknown);
         bases.push(rendered.text);
     }
@@ -701,12 +732,13 @@ fn collect_class_base_types(class: &ast::Class, type_renderer: &TypeRenderer) ->
 fn collect_interface_base_types(
     interface: &ast::Interface,
     type_renderer: &TypeRenderer,
+    type_params: &BTreeSet<String>,
 ) -> RenderedBases {
     let mut bases = Vec::new();
     let mut unknown = Vec::new();
 
     for extend in &interface.extends {
-        let rendered = type_renderer.render(extend);
+        let rendered = type_renderer.render(extend, type_params);
         unknown.extend(rendered.unknown);
         bases.push(rendered.text);
     }
@@ -717,12 +749,16 @@ fn collect_interface_base_types(
     }
 }
 
-fn collect_enum_base_types(r#enum: &ast::Enum, type_renderer: &TypeRenderer) -> RenderedBases {
+fn collect_enum_base_types(
+    r#enum: &ast::Enum,
+    type_renderer: &TypeRenderer,
+    type_params: &BTreeSet<String>,
+) -> RenderedBases {
     let mut bases = Vec::new();
     let mut unknown = Vec::new();
 
     for implemented in &r#enum.implements {
-        let rendered = type_renderer.render(implemented);
+        let rendered = type_renderer.render(implemented, type_params);
         unknown.extend(rendered.unknown);
         bases.push(rendered.text);
     }
@@ -733,85 +769,28 @@ fn collect_enum_base_types(r#enum: &ast::Enum, type_renderer: &TypeRenderer) -> 
     }
 }
 
-fn collect_type_params(roots: &[Rc<Root>]) -> BTreeSet<String> {
-    let mut type_params = BTreeSet::new();
+fn extend_type_params(
+    base: &BTreeSet<String>,
+    generics: &[ast::GenericDefinition],
+) -> BTreeSet<String> {
+    let mut combined = base.clone();
+    for generic in generics {
+        combined.insert(generic.ident.clone());
+    }
+    combined
+}
 
-    fn insert_generics(type_params: &mut BTreeSet<String>, generics: &[ast::GenericDefinition]) {
-        for generic in generics {
-            type_params.insert(generic.ident.clone());
-        }
+fn format_type_params(generics: &[ast::GenericDefinition]) -> String {
+    if generics.is_empty() {
+        return String::new();
     }
 
-    fn walk_class(type_params: &mut BTreeSet<String>, class_cell: &ClassCell) {
-        let class = class_cell.borrow();
-        insert_generics(type_params, &class.generics);
-
-        for function in &class.functions {
-            insert_generics(type_params, &function.generics);
-        }
-
-        for nested in &class.classes {
-            walk_class(type_params, nested);
-        }
-        for nested in &class.interfaces {
-            walk_interface(type_params, nested);
-        }
-        for nested in &class.enums {
-            walk_enum(type_params, nested);
-        }
-    }
-
-    fn walk_interface(type_params: &mut BTreeSet<String>, interface_cell: &InterfaceCell) {
-        let interface = interface_cell.borrow();
-        insert_generics(type_params, &interface.generics);
-
-        for function in &interface.functions {
-            insert_generics(type_params, &function.generics);
-        }
-
-        for nested in &interface.classes {
-            walk_class(type_params, nested);
-        }
-        for nested in &interface.interfaces {
-            walk_interface(type_params, nested);
-        }
-        for nested in &interface.enums {
-            walk_enum(type_params, nested);
-        }
-    }
-
-    fn walk_enum(type_params: &mut BTreeSet<String>, enum_cell: &EnumCell) {
-        let r#enum = enum_cell.borrow();
-        insert_generics(type_params, &r#enum.generics);
-
-        for function in &r#enum.functions {
-            insert_generics(type_params, &function.generics);
-        }
-
-        for nested in &r#enum.classes {
-            walk_class(type_params, nested);
-        }
-        for nested in &r#enum.interfaces {
-            walk_interface(type_params, nested);
-        }
-        for nested in &r#enum.enums {
-            walk_enum(type_params, nested);
-        }
-    }
-
-    for root in roots {
-        for class_cell in &root.classes {
-            walk_class(&mut type_params, class_cell);
-        }
-        for interface_cell in &root.interfaces {
-            walk_interface(&mut type_params, interface_cell);
-        }
-        for enum_cell in &root.enums {
-            walk_enum(&mut type_params, enum_cell);
-        }
-    }
-
-    type_params
+    let params = generics
+        .iter()
+        .map(|generic| generic.ident.clone())
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("[{}]", params)
 }
 
 struct TypeRenderer {
@@ -848,13 +827,13 @@ impl TypeRenderer {
         Self { class_paths }
     }
 
-    fn render_generic(&self, ty_gen: &TypeGeneric) -> RenderedType {
+    fn render_generic(&self, ty_gen: &TypeGeneric, type_params: &BTreeSet<String>) -> RenderedType {
         match &ty_gen {
-            TypeGeneric::Type(ty) => self.render(ty),
+            TypeGeneric::Type(ty) => self.render(ty, type_params),
             TypeGeneric::Wildcard(boundary) => match boundary {
                 WildcardBoundary::None => RenderedType::known("Any".to_string()),
                 WildcardBoundary::Extends(bound) | WildcardBoundary::Super(bound) => {
-                    let rendered = self.render(bound);
+                    let rendered = self.render(bound, type_params);
                     RenderedType {
                         text: "Any".to_string(),
                         unknown: rendered.unknown,
@@ -864,12 +843,12 @@ impl TypeRenderer {
         }
     }
 
-    fn render(&self, qty: &QualifiedType) -> RenderedType {
+    fn render(&self, qty: &QualifiedType, type_params: &BTreeSet<String>) -> RenderedType {
         let Some(last) = qty.last() else {
             return RenderedType::unknown(qty);
         };
 
-        let mut rendered = self.render_type(qty);
+        let mut rendered = self.render_type(qty, type_params);
         if last.array_depth > 0 {
             for _ in 0..last.array_depth {
                 rendered.text = format!("list[{}]", rendered.text);
@@ -879,20 +858,33 @@ impl TypeRenderer {
         rendered
     }
 
-    fn render_type(&self, qty: &QualifiedType) -> RenderedType {
+    fn render_type(&self, qty: &QualifiedType, type_params: &BTreeSet<String>) -> RenderedType {
         let ty = qty.last().unwrap();
 
         match &ty.name {
-            TypeName::Ident(_) => RenderedType::unknown(qty),
-            TypeName::ResolvedGeneric(ident) => self.render_named_type(ident.clone(), &ty.generics),
+            TypeName::Ident(ident) => {
+                if type_params.contains(ident) {
+                    RenderedType::known(ident.clone())
+                } else {
+                    RenderedType::unknown(qty)
+                }
+            }
+            TypeName::ResolvedGeneric(ident) => {
+                self.render_named_type(ident.clone(), &ty.generics, type_params)
+            }
             _ => {
                 let name = self.render_type_name(&ty.name);
-                self.render_named_type(name, &ty.generics)
+                self.render_named_type(name, &ty.generics, type_params)
             }
         }
     }
 
-    fn render_named_type(&self, base: String, generics: &[TypeGeneric]) -> RenderedType {
+    fn render_named_type(
+        &self,
+        base: String,
+        generics: &[TypeGeneric],
+        type_params: &BTreeSet<String>,
+    ) -> RenderedType {
         if generics.is_empty() {
             return RenderedType::known(base);
         }
@@ -901,7 +893,7 @@ impl TypeRenderer {
         let args = generics
             .iter()
             .map(|arg| {
-                let rendered = self.render_generic(arg);
+                let rendered = self.render_generic(arg, type_params);
                 unknown.extend(rendered.unknown);
                 rendered.text
             })
