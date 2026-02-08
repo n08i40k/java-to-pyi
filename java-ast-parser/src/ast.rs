@@ -739,7 +739,7 @@ pub struct Root {
 
 impl From<(Cow<'_, str>, Vec<Cow<'_, str>>, Option<Box<[RootEntry]>>)> for Root {
     fn from(value: (Cow<'_, str>, Vec<Cow<'_, str>>, Option<Box<[RootEntry]>>)) -> Self {
-        let (package, imports, entries) = value;
+        let (package, mut imports, entries) = value;
 
         let mut classes = Vec::new();
         let mut enums = Vec::new();
@@ -754,6 +754,8 @@ impl From<(Cow<'_, str>, Vec<Cow<'_, str>>, Option<Box<[RootEntry]>>)> for Root 
                 }
             }
         }
+
+        imports.push(Cow::from("java.lang.*"));
 
         Self {
             package: package.to_string(),

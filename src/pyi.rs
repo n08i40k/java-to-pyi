@@ -883,18 +883,7 @@ impl TypeRenderer {
         let ty = qty.last().unwrap();
 
         match &ty.name {
-            TypeName::Ident(ident) => {
-                let name_key = type_name_key(ident);
-                if let Some(collection) = name_key.as_deref().and_then(collection_kind) {
-                    return self.render_collection(collection, &ty.generics);
-                }
-
-                if let Some(mapped) = map_boxed_type(ident) {
-                    return RenderedType::known(mapped);
-                }
-
-                RenderedType::unknown(qty)
-            }
+            TypeName::Ident(_) => RenderedType::unknown(qty),
             TypeName::ResolvedGeneric(ident) => self.render_named_type(ident.clone(), &ty.generics),
             _ => {
                 let name = self.render_type_name(&ty.name);
@@ -939,60 +928,9 @@ impl TypeRenderer {
                 .cloned()
                 .unwrap_or_else(|| class_cell.borrow().ident.clone()),
             TypeName::ResolvedGeneric(ident) => ident.clone(),
-            TypeName::Ident(ident) => map_boxed_type(ident).unwrap_or_else(|| ident.clone()),
+            TypeName::Ident(ident) => ident.clone(),
         }
     }
-
-    fn render_collection(
-        &self,
-        collection: CollectionKind,
-        generics: &[TypeGeneric],
-    ) -> RenderedType {
-        let mut unknown = Vec::new();
-        let mut render_arg = |index: usize| -> String {
-            let rendered = generics.get(index).map(|arg| self.render_generic(arg));
-            match rendered {
-                Some(rendered) => {
-                    unknown.extend(rendered.unknown);
-                    rendered.text
-                }
-                None => "Any".to_string(),
-            }
-        };
-
-        let text = match collection {
-            CollectionKind::List => format!("list[{}]", render_arg(0)),
-            CollectionKind::Set => format!("set[{}]", render_arg(0)),
-            CollectionKind::Map => format!("dict[{}, {}]", render_arg(0), render_arg(1)),
-        };
-
-        RenderedType {
-            text,
-            unknown: unknown.into_boxed_slice(),
-        }
-    }
-}
-
-#[derive(Clone, Copy)]
-enum CollectionKind {
-    List,
-    Set,
-    Map,
-}
-
-fn collection_kind(type_name: &str) -> Option<CollectionKind> {
-    match type_name {
-        "List" | "ArrayList" | "LinkedList" | "Vector" => Some(CollectionKind::List),
-        "Set" | "HashSet" | "LinkedHashSet" | "TreeSet" => Some(CollectionKind::Set),
-        "Map" | "HashMap" | "LinkedHashMap" | "TreeMap" | "ConcurrentHashMap" => {
-            Some(CollectionKind::Map)
-        }
-        _ => None,
-    }
-}
-
-fn type_name_key(name: &str) -> Option<String> {
-    name.rsplit('.').next().map(|v| v.to_string())
 }
 
 fn collect_definition_paths(roots: &[Rc<Root>]) -> DefinitionPaths {
@@ -1115,19 +1053,6 @@ fn collect_definition_paths(roots: &[Rc<Root>]) -> DefinitionPaths {
     }
 
     paths
-}
-
-fn map_boxed_type(ident: &str) -> Option<String> {
-    let last_segment = ident.rsplit('.').next().unwrap_or(ident);
-    match last_segment {
-        "String" => Some("str".to_string()),
-        "Object" => Some("Any".to_string()),
-        "Integer" | "Long" | "Short" | "Byte" => Some("int".to_string()),
-        "Boolean" => Some("bool".to_string()),
-        "Float" | "Double" => Some("float".to_string()),
-        "Character" => Some("str".to_string()),
-        _ => None,
-    }
 }
 
 #[derive(Debug, Clone)]

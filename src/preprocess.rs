@@ -1,6 +1,6 @@
 use std::{collections::HashMap, fs, ops::Deref, path::Path, rc::Rc};
 
-use java_ast_parser::ast::{self, ClassCell, EnumCell, InterfaceCell, Type, TypeGeneric, TypeName};
+use java_ast_parser::ast::{self, ClassCell, EnumCell, InterfaceCell, TypeGeneric, TypeName};
 use log::debug;
 
 use crate::index_tree::{GlobalIndexTree, ImportedIndexTree, LocalIndexTree, PackageIndexTree};
@@ -36,19 +36,6 @@ fn resolve_qualified_type(
             if let TypeGeneric::Type(inner) = inner {
                 resolve_qualified_type(generic_names, inner, scope, local_index_tree);
             }
-        }
-    }
-
-    if let Some(Type {
-        name: TypeName::Ident(ident),
-        ..
-    }) = r#type.last()
-    {
-        match ident.as_str() {
-            "String" | "Boolean" | "Integer" | "Long" | "Map" | "List" | "Set" | "HashMap"
-            | "ArrayList" | "HashSet" | "ImmutableMap" | "ImmutableList" | "ImmutableSet"
-            | "IdentityHashMap" | "CharSequence" | "ByteBuffer" | "Object" | "Runnable" => return,
-            _ => {}
         }
     }
 
