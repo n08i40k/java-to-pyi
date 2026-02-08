@@ -4,7 +4,13 @@
 
 <p id="description">Java‑to‑PYI is a Rust tool that parses Java source into a preprocessed AST and generates Python stub files (.pyi) with type definitions only. It was originally designed to generate class declarations to provide accurate type hints in the Telegram codebase when developing Exteragram plugins.</p>
 
-## Installation Steps
+## Installation from `crates.io`
+
+```
+cargo install java2pyi
+```
+
+## Building from source code and installation steps
 
 1. Clone this repo
 
