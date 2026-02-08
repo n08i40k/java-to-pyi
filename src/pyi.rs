@@ -118,9 +118,19 @@ impl PyiEmitter {
         let class_path = self.definition_paths.class_path(class_cell);
         let mut rendered_bases =
             collect_class_base_types(&class, &self.type_renderer, &class_type_params);
+        let mut inserted_special_base = false;
         if let Some(special_base) = java_stdlib_python_base(&class_path, &class.generics) {
             if !rendered_bases.bases.iter().any(|base| base == &special_base) {
                 rendered_bases.bases.insert(0, special_base);
+                inserted_special_base = true;
+            }
+        }
+        if class_path != "java.lang.Object" && class.extends.is_none() {
+            let object_base = "java.lang.Object".to_string();
+            if !rendered_bases.bases.iter().any(|base| base == &object_base) {
+                let insert_at = if inserted_special_base { 1 } else { 0 };
+                let bounded_index = insert_at.min(rendered_bases.bases.len());
+                rendered_bases.bases.insert(bounded_index, object_base);
             }
         }
         let bases_suffix = if rendered_bases.bases.is_empty() {
