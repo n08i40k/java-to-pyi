@@ -2,6 +2,11 @@
 name = "java-ast-parser"
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
+keywords = ["java", "ast", "parser"]
+categories = ["parser-implementations"]
+description = "A Java parser that produces a typed AST without initializers and function bodies"
+repository = "https://github.com/n08i40k/java2pyi"
 
 [dependencies]
 lalrpop-util = "0.22.2"

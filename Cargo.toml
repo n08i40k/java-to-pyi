@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "java-ast-parser"]
+members = ["java-ast-parser"]
 
 [package]
 name = "java2pyi"
@@ -12,8 +12,10 @@ description = "Java source to Python stubs for mypy/pyright"
 repository = "https://github.com/n08i40k/java2pyi"
 readme = "README.md"
 
+exclude = ["java-ast-parser/**"]
+
 [dependencies]
-java-ast-parser = { path = "./java-ast-parser/" }
+java-ast-parser = { version = "0.1.0", path = "java-ast-parser" }
 lalrpop-util = "0.22.2"
 orx-tree = "2.2.0"
 log = "0.4.29"
