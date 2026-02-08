@@ -4,6 +4,7 @@ use java_ast_parser::ast::{self, ClassCell, EnumCell, InterfaceCell, Type, TypeG
 use log::debug;
 
 use crate::index_tree::{GlobalIndexTree, ImportedIndexTree, LocalIndexTree, PackageIndexTree};
+use crate::status;
 
 /// Parse ast and convert it to owned ("disconnect" from string).
 pub fn parse_java_ast<P: AsRef<Path>>(
@@ -444,6 +445,7 @@ pub struct Scope {
 
 impl Scope {
     pub fn from_roots(roots: &[Rc<ast::Root>]) -> Box<[Self]> {
+        status::update(&format!("Indexing 0/{}", roots.len()));
         let package_index_trees = {
             let package_index_trees = roots
                 .iter()
@@ -465,28 +467,39 @@ impl Scope {
 
         let global_index_tree = Rc::new(GlobalIndexTree::from_iter(package_index_trees.values()));
 
-        roots
-            .iter()
-            .map(|root| {
-                let imported_index_tree = ImportedIndexTree::from_imports(
-                    root.imports.iter().map(|x| x.as_str()),
-                    &global_index_tree,
-                );
+        let mut scopes = Vec::with_capacity(roots.len());
+        for (index, root) in roots.iter().enumerate() {
+            let label = if root.package.is_empty() {
+                "<root>"
+            } else {
+                root.package.as_str()
+            };
+            status::update(&format!(
+                "Indexing {}/{}: {}",
+                index + 1,
+                roots.len(),
+                label
+            ));
+            let imported_index_tree = ImportedIndexTree::from_imports(
+                root.imports.iter().map(|x| x.as_str()),
+                &global_index_tree,
+            );
 
-                let package_index_tree = package_index_trees.get(root.package.as_str()).unwrap();
+            let package_index_tree = package_index_trees.get(root.package.as_str()).unwrap();
 
-                let local_index_tree = LocalIndexTree::new(
-                    global_index_tree.clone(),
-                    imported_index_tree,
-                    Clone::clone(package_index_tree.deref()),
-                );
+            let local_index_tree = LocalIndexTree::new(
+                global_index_tree.clone(),
+                imported_index_tree,
+                Clone::clone(package_index_tree.deref()),
+            );
 
-                Scope {
-                    ast: root.clone(),
-                    local_index_tree,
-                }
-            })
-            .collect::<Box<_>>()
+            scopes.push(Scope {
+                ast: root.clone(),
+                local_index_tree,
+            });
+        }
+
+        scopes.into_boxed_slice()
     }
 }
 

@@ -12,6 +12,7 @@ use crate::pyi::generate_pyi_by_package;
 mod index_tree;
 mod preprocess;
 mod pyi;
+mod status;
 
 fn main() {
     if std::env::var("RUST_LOG").is_err() {
@@ -43,17 +44,32 @@ fn main() {
     };
 
     if files.is_empty() {
+        status::clear();
         eprintln!("no .java files found in provided inputs");
         return;
     }
 
+    let total_files = files.len();
+    status::update(&format!("Parsing 0/{}", total_files));
     let mut asts = Vec::new();
-    for file in files {
-        match parse_java_ast(&file) {
+    for (index, file) in files.iter().enumerate() {
+        let display_name = file
+            .file_name()
+            .and_then(|name| name.to_str())
+            .map(str::to_string)
+            .unwrap_or_else(|| file.to_string_lossy().to_string());
+        status::update(&format!(
+            "Parsing {}/{}: {}",
+            index + 1,
+            total_files,
+            display_name
+        ));
+        match parse_java_ast(file) {
             Ok(ast) => asts.push(Rc::new(ast)),
             Err(e) => match &e.inner {
                 java_ast_parser::Error::UnrecognizedEof { .. } => {}
                 _ => {
+                    status::clear();
                     eprintln!("failed to parse {}\n{}", file.display(), e);
                     return;
                 }
@@ -62,6 +78,7 @@ fn main() {
     }
 
     if asts.is_empty() {
+        status::clear();
         eprintln!("no parsable .java files found");
         return;
     }
@@ -70,15 +87,28 @@ fn main() {
 
     let outputs = generate_pyi_by_package(&asts);
 
-    for (package, contents) in outputs {
+    let total_outputs = outputs.len();
+    status::update(&format!("Writing 0/{}", total_outputs));
+    for (index, (package, contents)) in outputs.into_iter().enumerate() {
+        let label = if package.is_empty() {
+            "<root>"
+        } else {
+            package.as_str()
+        };
+        status::update(&format!(
+            "Writing {}/{}: {}",
+            index + 1,
+            total_outputs,
+            label
+        ));
         let file_path = package_to_path(&options.out_dir, &package);
         if let Some(parent) = file_path.parent() {
             fs::create_dir_all(parent).unwrap();
         }
         fs::write(&file_path, contents).unwrap();
         ensure_parent_inits(&file_path, &options.out_dir).unwrap();
-        println!("wrote {}", file_path.display());
     }
+    status::clear();
 }
 
 fn package_to_path(out_dir: &Path, package: &str) -> PathBuf {

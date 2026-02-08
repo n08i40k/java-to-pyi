@@ -5,6 +5,7 @@ use java_ast_parser::ast::{
     self, ClassCell, EnumCell, Function, InterfaceCell, Modifiers, QualifiedType, Root,
     TypeGeneric, TypeName, WildcardBoundary,
 };
+use crate::status;
 
 trait QualifiedTypeFormat {
     fn fmt(&self) -> String;
@@ -32,7 +33,20 @@ pub fn generate_pyi_by_package(roots: &[Rc<Root>]) -> HashMap<String, String> {
     }
 
     let mut outputs = HashMap::new();
-    for (package, package_roots) in roots_by_package {
+    let total_packages = roots_by_package.len();
+    status::update(&format!("Serializing 0/{}", total_packages));
+    for (index, (package, package_roots)) in roots_by_package.into_iter().enumerate() {
+        let label = if package.is_empty() {
+            "<root>".to_string()
+        } else {
+            package.clone()
+        };
+        status::update(&format!(
+            "Serializing {}/{}: {}",
+            index + 1,
+            total_packages,
+            label
+        ));
         let type_params = collect_type_params(&package_roots);
         let module_imports = collect_module_imports(&package_roots, &definition_paths);
         let mut emitter = PyiEmitter::new(
