@@ -341,7 +341,7 @@ pub enum Token<'a> {
     #[regex(r#""([^"\\]*(?:\\.[^"\\]*)*)""#, string_from_lexer)]
     String(Cow<'a, str>),
 
-    #[regex(r"[\p{L}_][\p{L}\p{Nd}_\$]*", |x| Cow::from(x.slice()), priority = 0)]
+    #[regex(r"[\p{L}_\$][\p{L}\p{Nd}_\$]*", |x| Cow::from(x.slice()), priority = 0)]
     Ident(Cow<'a, str>),
 }
 
